@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import {errorHandler, notFound} from './middleware/error.js';
 import {originCheck} from './middleware/origin.js';
+import {healthRouter} from './routes/health.js';
 
 export function createApp() {
   const app = express();
@@ -28,7 +29,8 @@ export function createApp() {
   // Parse JSON request bodies, max 100 kB.
   app.use(express.json({limit: '100kb'}));
 
-  // Routes are added here in the next steps.
+  // API routes (base path /api, see the API contract)
+  app.use('/api/health', healthRouter);
 
   // These two must stay last: first "nothing matched", then the error handler.
   app.use(notFound);

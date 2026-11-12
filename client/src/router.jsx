@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 
@@ -10,14 +11,19 @@ export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/loans" replace /> },
 
   // Student (phone)
-  { path: '/login', element: placeholder('Log in') },
-  { path: '/login/code', element: placeholder('Enter code') },
-  { path: '/i/:code', element: placeholder('Item') },
-  { path: '/borrow', element: placeholder('Borrow request') },
-  { path: '/loans', element: placeholder('My loans') },
-  { path: '/return/:loanId', element: placeholder('Return items') },
-  { path: '/r/:qrToken', element: placeholder('Room') },
-  { path: '/profile', element: placeholder('Profile') },
+  {
+    element: <PhoneLayout />,
+    children: [
+      { path: '/login', element: placeholder('Log in') },
+      { path: '/login/code', element: placeholder('Enter code') },
+      { path: '/i/:code', element: placeholder('Item') },
+      { path: '/borrow', element: placeholder('Borrow request') },
+      { path: '/loans', element: placeholder('My loans') },
+      { path: '/return/:loanId', element: placeholder('Return items') },
+      { path: '/r/:qrToken', element: placeholder('Room') },
+      { path: '/profile', element: placeholder('Profile') },
+    ],
+  },
 
   // Moderator (desktop)
   { path: '/mod', element: placeholder('Dashboard') },

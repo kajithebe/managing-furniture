@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # Server checks run only when server/package.json exists.
+      # TODO: remove the hashFiles checks when MF-02 is merged.
+      - name: Server - install
+        if: hashFiles('server/package.json') != ''
+        working-directory: server
+        run: npm ci
+
+      - name: Server - lint
+        if: hashFiles('server/package.json') != ''
+        working-directory: server
+        run: npm run lint
+
+      - name: Server - build
+        if: hashFiles('server/package.json') != ''
+        working-directory: server
+        run: npm run build --if-present
+
+      - name: Server - skipped
+        if: hashFiles('server/package.json') == ''
+        run: echo "::notice::server/package.json not found, server checks skipped"
+
+      # Client checks run only when client/package.json exists.
+      # TODO: remove the hashFiles checks when MF-04 is merged.
+      - name: Client - install
+        if: hashFiles('client/package.json') != ''
+        working-directory: client
+        run: npm ci
+
+      - name: Client - lint
+        if: hashFiles('client/package.json') != ''
+        working-directory: client
+        run: npm run lint
+
+      - name: Client - build
+        if: hashFiles('client/package.json') != ''
+        working-directory: client
+        run: npm run build
+
+      - name: Client - skipped
+        if: hashFiles('client/package.json') == ''
+        run: echo "::notice::client/package.json not found, client checks skipped"

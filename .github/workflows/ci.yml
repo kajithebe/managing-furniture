@@ -30,6 +30,11 @@ jobs:
         working-directory: server
         run: npm ci
 
+      - name: Server - security audit
+        if: hashFiles('server/package.json') != ''
+        working-directory: server
+        run: npm audit --audit-level=high
+
       - name: Server - lint
         if: hashFiles('server/package.json') != ''
         working-directory: server
@@ -50,6 +55,11 @@ jobs:
         if: hashFiles('client/package.json') != ''
         working-directory: client
         run: npm ci
+
+      - name: Client - security audit
+        if: hashFiles('client/package.json') != ''
+        working-directory: client
+        run: npm audit --audit-level=high
 
       - name: Client - lint
         if: hashFiles('client/package.json') != ''

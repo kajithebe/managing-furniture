@@ -18,10 +18,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v5
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
 
       # Server checks run only when server/package.json exists.
       # TODO: remove the hashFiles checks when MF-02 is merged.

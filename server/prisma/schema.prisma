@@ -1,0 +1,12 @@
+// Prisma schema for Managing Furniture.
+// The models (User, Item, Loan …) are added in MF-06, following 02-architecture-and-data-model.md.
+
+generator client {
+  // Plain JavaScript client in node_modules, imported from "@prisma/client".
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // The connection URL comes from prisma.config.js (DATABASE_URL).
+  provider = "postgresql"
+}

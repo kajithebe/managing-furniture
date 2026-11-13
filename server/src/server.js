@@ -1,7 +1,7 @@
 // Entry point: checks the environment, starts the HTTP server and stops it cleanly.
-import {env} from './config/env.js';
-import {createApp} from './app.js';
-import {prisma} from './db.js';
+import { env } from './config/env.js';
+import { createApp } from './app.js';
+import { prisma } from './db.js';
 
 const app = createApp();
 

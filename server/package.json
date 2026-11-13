@@ -18,7 +18,8 @@
     "db:status": "prisma migrate status",
     "lint": "eslint . && prettier --check . --ignore-path ../.gitignore --ignore-path ../.prettierignore",
     "format": "prettier --write . --ignore-path ../.gitignore --ignore-path ../.prettierignore",
-    "db:seed": "node --env-file-if-exists=../.env prisma/seed.js"
+    "db:seed": "node --env-file-if-exists=../.env prisma/seed.js",
+    "db:seed:demo": "node --env-file-if-exists=../.env prisma/seed.js --demo"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

@@ -73,3 +73,27 @@ model Room {
 
   @@unique([buildingId, name])
 }
+
+// ---------- Lookup lists ("+ Add new") ----------
+
+model Category {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  code        String  @unique // short code, e.g. CHR
+  autoApprove Boolean @default(false) // seed: Chair, Stool = true
+  archived    Boolean @default(false)
+}
+
+model Brand {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  code     String  @unique // short code, e.g. ISK
+  archived Boolean @default(false)
+}
+
+model Colour {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  code     String  @unique // short code, e.g. BLK
+  archived Boolean @default(false)
+}

@@ -52,12 +52,13 @@ export default function DesktopLayout() {
   // TODO(MF-31): menu counts from GET /api/moderator/dashboard.
   const counts = {};
 
-  async function handleLogout() {
+    async function handleLogout() {
     try {
       await api.post('/auth/logout');
-    } finally {
-      navigate('/login');
+    } catch {
+      // Ignore: even if the server call fails, the user still leaves to the login page.
     }
+    navigate('/login');
   }
 
   return (
@@ -105,3 +106,5 @@ export default function DesktopLayout() {
     </div>
   );
 }
+
+

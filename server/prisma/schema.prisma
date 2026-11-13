@@ -41,3 +41,35 @@ model OtpCode {
 
   @@index([email])
 }
+
+// ---------- Locations: campus → building → room ----------
+
+model Campus {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  code      String     @unique // short code, e.g. KAR
+  archived  Boolean    @default(false)
+  buildings Building[]
+}
+
+model Building {
+  id       Int     @id @default(autoincrement())
+  name     String
+  campusId Int
+  campus   Campus  @relation(fields: [campusId], references: [id])
+  archived Boolean @default(false)
+  rooms    Room[]
+
+  @@unique([campusId, name])
+}
+
+model Room {
+  id         Int      @id @default(autoincrement())
+  name       String // e.g. "D569"
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+  qrToken    String   @unique // door QR: BASE_URL/r/<qrToken>, random, never the room name
+  archived   Boolean  @default(false)
+
+  @@unique([buildingId, name])
+}

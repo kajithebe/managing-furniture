@@ -52,7 +52,7 @@ export default function DesktopLayout() {
   // TODO(MF-31): menu counts from GET /api/moderator/dashboard.
   const counts = {};
 
-    async function handleLogout() {
+  async function handleLogout() {
     try {
       await api.post('/auth/logout');
     } catch {
@@ -65,7 +65,9 @@ export default function DesktopLayout() {
     <div className="flex min-h-screen bg-page">
       <aside className="sticky top-0 flex h-screen w-48 shrink-0 flex-col border-r border-line bg-surface px-4 py-6">
         <div className="px-3">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-brand">Metropolia</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-brand">
+            Metropolia
+          </p>
           <p className="text-xl font-semibold text-ink">Furniture</p>
           <p className="text-xs text-muted">University of Applied Sciences</p>
         </div>
@@ -106,5 +108,3 @@ export default function DesktopLayout() {
     </div>
   );
 }
-
-

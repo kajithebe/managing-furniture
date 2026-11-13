@@ -1,8 +1,10 @@
-// Seed data for a new installation: default settings, lookup lists and the Karaportti campus.
-// With --demo it also adds a demo building with rooms (local development and the Render demo).
+// Seed data for a new installation: default settings, lookup lists, the Karaportti campus
+// and the first admin. With --demo it also adds a demo building with rooms
+// (local development and the Render demo).
 // Safe to run many times: it never overwrites or re-creates what an admin has changed.
 // Run with: npm run db:seed   or   npm run db:seed:demo
 import { randomBytes } from 'node:crypto';
+import { env } from '../src/config/env.js';
 import { prisma } from '../src/db.js';
 
 const withDemoData = process.argv.includes('--demo');
@@ -90,6 +92,24 @@ async function seedDemoLocations() {
   return DEMO_BUILDING.rooms.length;
 }
 
+// 02 › User safety rules: INITIAL_ADMIN_EMAIL becomes ADMIN on first start.
+// Only when no admin exists yet, so a restart never undoes role changes made by admins.
+// The email is already lower-cased and checked against ALLOWED_EMAIL_DOMAIN by env.js.
+// The name stays empty: it is taken from the email on first login (MF-07).
+// Returns 1 if the first admin was created or promoted, otherwise 0.
+async function seedFirstAdmin() {
+  if ((await prisma.user.count({ where: { role: 'ADMIN' } })) > 0) {
+    return 0;
+  }
+
+  await prisma.user.upsert({
+    where: { email: env.INITIAL_ADMIN_EMAIL },
+    update: { role: 'ADMIN', active: true },
+    create: { email: env.INITIAL_ADMIN_EMAIL, role: 'ADMIN' },
+  });
+  return 1;
+}
+
 async function main() {
   await seedSettings();
   const categories = await seedListIfEmpty(prisma.category, CATEGORIES);
@@ -97,10 +117,11 @@ async function main() {
   const colours = await seedListIfEmpty(prisma.colour, COLOURS);
   const campuses = await seedListIfEmpty(prisma.campus, [DEFAULT_CAMPUS]);
   const rooms = withDemoData ? await seedDemoLocations() : 0;
+  const admins = await seedFirstAdmin();
 
   console.info(
     `Seed done. Added: ${categories} categories, ${brands} brands, ${colours} colours, ` +
-      `${campuses} campuses, ${rooms} demo rooms.`,
+      `${campuses} campuses, ${rooms} demo rooms, ${admins} first admin.`,
   );
 }
 

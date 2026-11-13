@@ -38,7 +38,9 @@ export function errorHandler(err, req, res, next) {
     status = 400;
     code = 'VALIDATION_ERROR';
     message = err.issues
-      .map((issue) => (issue.path.length ? `${issue.path.join('.')}: ${issue.message}` : issue.message))
+      .map((issue) =>
+        issue.path.length ? `${issue.path.join('.')}: ${issue.message}` : issue.message,
+      )
       .join('; ');
   } else if (err.type === 'entity.too.large') {
     status = 413;

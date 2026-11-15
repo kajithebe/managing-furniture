@@ -28,7 +28,12 @@ export default function Button({
   children,
   ...rest
 }) {
-  const classes = [BASE, VARIANTS[variant] ?? VARIANTS.primary, fullWidth ? 'w-full' : '', className]
+  const classes = [
+    BASE,
+    VARIANTS[variant] ?? VARIANTS.primary,
+    fullWidth ? 'w-full' : '',
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

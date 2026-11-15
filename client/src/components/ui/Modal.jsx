@@ -23,7 +23,8 @@ export default function Modal({
     // Remember what had focus, so we can give it back when the modal closes.
     const previouslyFocused = document.activeElement;
     const panel = panelRef.current;
-    const first = panel?.querySelector('input, select, textarea') ?? panel?.querySelector(FOCUSABLE);
+    const first =
+      panel?.querySelector('input, select, textarea') ?? panel?.querySelector(FOCUSABLE);
     first?.focus();
 
     function handleKeyDown(event) {

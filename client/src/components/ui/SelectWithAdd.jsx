@@ -120,7 +120,9 @@ export default function SelectWithAdd({
               const isAdd = row.value === ADD;
               const classes = [
                 'flex min-h-11 cursor-pointer items-center px-3',
-                isAdd ? 'border-b border-line text-sm font-semibold text-brand' : 'text-base text-ink',
+                isAdd
+                  ? 'border-b border-line text-sm font-semibold text-brand'
+                  : 'text-base text-ink',
                 row.value === value ? 'bg-brand-tint' : index === active ? 'bg-page' : '',
               ]
                 .filter(Boolean)

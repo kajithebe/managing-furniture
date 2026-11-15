@@ -1,7 +1,10 @@
 export default function Checkbox({ id, label, className = '', children, ...rest }) {
   return (
     <div className={className}>
-      <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-2 text-[15px] text-ink">
+      <label
+        htmlFor={id}
+        className="flex min-h-11 cursor-pointer items-center gap-2 text-[15px] text-ink"
+      >
         <input
           id={id}
           type="checkbox"

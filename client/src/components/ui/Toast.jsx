@@ -1,12 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function Toast({ message, onDismiss, duration = 4000, className = '' }) {
+  // Always hold the latest onDismiss, so the timer below does not restart on every render.
+  const onDismissRef = useRef(onDismiss);
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  });
+
   // Hide the toast by itself after a few seconds.
   useEffect(() => {
-    if (!message || !onDismiss) return undefined;
-    const timer = setTimeout(onDismiss, duration);
+    if (!message) return undefined;
+    const timer = setTimeout(() => onDismissRef.current?.(), duration);
     return () => clearTimeout(timer);
-  }, [message, onDismiss, duration]);
+  }, [message, duration]);
 
   if (!message) return null;
 

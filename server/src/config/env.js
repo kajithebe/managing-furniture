@@ -11,6 +11,12 @@ const optionalText = z.preprocess(blankToUndefined, z.string().optional());
 const port = (fallback) =>
   z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(65535).default(fallback));
 
+// True for metropolia.fi and any subdomain, e.g. furniture.metropolia.fi
+function isMetropoliaHost(url) {
+  const host = new URL(url).hostname.toLowerCase();
+  return host === 'metropolia.fi' || host.endsWith('.metropolia.fi');
+}
+
 const schema = z
   .object({
     // App
@@ -67,6 +73,14 @@ const schema = z
           });
         }
       }
+    }
+    // 02 › Login security: showing the code on screen is for the demo only.
+    if (env.OTP_DELIVERY === 'screen' && isMetropoliaHost(env.BASE_URL)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['OTP_DELIVERY'],
+        message: '"screen" is for the demo only and is not allowed with a Metropolia BASE_URL',
+      });
     }
   });
 

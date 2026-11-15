@@ -23,13 +23,15 @@ export default function Scanner({
         </div>
       </div>
       {onTypeCode && (
-        <button
-          type="button"
-          onClick={onTypeCode}
-          className="mt-3 inline-flex min-h-11 items-center rounded text-[15px] font-semibold text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-        >
-          {typeCodeLabel}
-        </button>
+        <div className="mt-3 text-center">
+          <button
+            type="button"
+            onClick={onTypeCode}
+            className="inline-flex min-h-11 items-center rounded text-[15px] font-semibold text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            {typeCodeLabel}
+          </button>
+        </div>
       )}
     </div>
   );

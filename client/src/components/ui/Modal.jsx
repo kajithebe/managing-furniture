@@ -16,6 +16,11 @@ export default function Modal({
 }) {
   const panelRef = useRef(null);
   const titleId = useId();
+  // Always hold the latest onClose, so the effect below does not depend on it.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return undefined;
@@ -30,7 +35,7 @@ export default function Modal({
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !panel) return;
@@ -54,7 +59,7 @@ export default function Modal({
       document.removeEventListener('keydown', handleKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

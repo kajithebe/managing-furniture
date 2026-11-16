@@ -11,20 +11,14 @@ const MINUTE = 60 * 1000;
 const CODE_VALID_MINUTES = 10;
 const MAX_CODES_PER_WINDOW = 3;
 const CODE_WINDOW_MINUTES = 15;
+const MAX_ATTEMPTS = 5;
 const BCRYPT_ROUNDS = 10;
 
 function isAllowedEmail(email) {
   return email.endsWith(`@${env.ALLOWED_EMAIL_DOMAIN}`);
 }
 
-// 6 digits from a cryptographically secure random number, e.g. "048213".
-function newCode() {
-  return String(randomInt(0, 1_000_000)).padStart(6, '0');
-}
-
-// Sends a login code. Does not look up the user: the reply is the same
-// whether the email has an account or not.
-export async function requestCode(email) {
+function assertAllowedEmail(email) {
   if (!isAllowedEmail(email)) {
     throw new AppError(
       400,
@@ -32,6 +26,32 @@ export async function requestCode(email) {
       `Use your @${env.ALLOWED_EMAIL_DOMAIN} email address.`,
     );
   }
+}
+
+// 6 digits from a cryptographically secure random number, e.g. "048213".
+function newCode() {
+  return String(randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+// "anna.virtanen@metropolia.fi" → "Anna Virtanen" (users can correct it on their profile).
+function nameFromEmail(email) {
+  return email
+    .split('@')[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+// The user as the API returns it: never more than the client needs.
+export function publicUser(user) {
+  return { id: user.id, email: user.email, name: user.name, role: user.role };
+}
+
+// Sends a login code. Does not look up the user: the reply is the same
+// whether the email has an account or not.
+export async function requestCode(email) {
+  assertAllowedEmail(email);
 
   const since = new Date(Date.now() - CODE_WINDOW_MINUTES * MINUTE);
   const recentCodes = await prisma.otpCode.count({ where: { email, createdAt: { gte: since } } });
@@ -67,4 +87,88 @@ export async function requestCode(email) {
   }
 
   return { ok: true };
+}
+
+// First login creates the user (name from the email). INITIAL_ADMIN_EMAIL becomes ADMIN
+// when no active admin exists yet (02 › User safety rules: "first start or first login").
+async function findOrCreateUser(email) {
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && !existing.active) {
+    throw new AppError(
+      403,
+      'ACCOUNT_DEACTIVATED',
+      'This account is deactivated. Please contact a Metropolia Furniture admin.',
+    );
+  }
+
+  const isFirstAdmin =
+    email === env.INITIAL_ADMIN_EMAIL &&
+    (await prisma.user.count({ where: { role: 'ADMIN', active: true } })) === 0;
+
+  if (!existing) {
+    return prisma.user.create({
+      data: {
+        email,
+        name: nameFromEmail(email),
+        role: isFirstAdmin ? 'ADMIN' : 'USER',
+        lastLoginAt: new Date(),
+      },
+    });
+  }
+
+  return prisma.user.update({
+    where: { id: existing.id },
+    data: {
+      lastLoginAt: new Date(),
+      ...(existing.name ? {} : { name: nameFromEmail(email) }),
+      ...(isFirstAdmin ? { role: 'ADMIN' } : {}),
+    },
+  });
+}
+
+// Checks the code and returns the logged-in user. The route then starts the session.
+export async function verifyCode(email, code) {
+  assertAllowedEmail(email);
+
+  const invalid = new AppError(
+    400,
+    'CODE_INVALID',
+    'The code is wrong or has expired. Please request a new code.',
+  );
+
+  // Only the newest code that is still usable counts.
+  const otp = await prisma.otpCode.findFirst({
+    where: { email, usedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: MAX_ATTEMPTS } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!otp) {
+    throw invalid;
+  }
+
+  if (!(await bcrypt.compare(code, otp.codeHash))) {
+    const { attempts } = await prisma.otpCode.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+    });
+    if (attempts >= MAX_ATTEMPTS) {
+      throw new AppError(400, 'CODE_INVALID', 'Too many wrong tries. Please request a new code.');
+    }
+    throw invalid;
+  }
+
+  // Single use: mark this code as used, only if nobody used it a moment ago (two tabs).
+  const { count } = await prisma.otpCode.updateMany({
+    where: { id: otp.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  if (count === 0) {
+    throw invalid;
+  }
+  // Older open codes for this email are no longer needed either.
+  await prisma.otpCode.updateMany({
+    where: { email, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  return publicUser(await findOrCreateUser(email));
 }

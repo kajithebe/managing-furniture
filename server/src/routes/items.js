@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { previewNextCode } from '../services/codeService.js';
 import {
   createItems,
@@ -88,31 +89,32 @@ const updateItemSchema = z
 
 export const itemsRouter = Router();
 
-// TODO: add requireAuth (+ requireRole('MODERATOR') except on GET /:code) when MF-07 is merged.
-itemsRouter.get('/', async (req, res) => {
+// Moderators and admins only (requireRole('MODERATOR') also lets admins through).
+const moderator = [requireAuth, requireRole('MODERATOR')];
+
+itemsRouter.get('/', moderator, async (req, res) => {
   res.json(await listItems(listQuerySchema.parse(req.query)));
 });
 
 // Must stay above /:code, otherwise "next-code" would be read as an item code.
-itemsRouter.get('/next-code', async (req, res) => {
+itemsRouter.get('/next-code', moderator, async (req, res) => {
   nextCodeQuerySchema.parse(req.query);
   res.json({ code: await previewNextCode(prisma) });
 });
 
-itemsRouter.get('/:code', async (req, res) => {
+// Every logged-in user: this is the page a QR scan opens.
+itemsRouter.get('/:code', requireAuth, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
   res.json(await getItem(code));
 });
 
-itemsRouter.post('/', async (req, res) => {
+itemsRouter.post('/', moderator, async (req, res) => {
   const data = createItemSchema.parse(req.body);
-  // TODO: pass req.user.id when MF-07 is merged.
-  res.status(201).json(await createItems(data, null));
+  res.status(201).json(await createItems(data, req.user.id));
 });
 
-itemsRouter.patch('/:code', async (req, res) => {
+itemsRouter.patch('/:code', moderator, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
   const changes = updateItemSchema.parse(req.body);
-  // TODO: pass req.user.id when MF-07 is merged.
-  res.json(await updateItem(code, changes, null));
+  res.json(await updateItem(code, changes, req.user.id));
 });

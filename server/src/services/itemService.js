@@ -127,8 +127,8 @@ async function checkActive(model, id, label) {
   return row;
 }
 
-// `data` is already validated by the route. `userId` is the logged-in moderator (null until
-// MF-07 is merged). Returns the created items, in code order.
+// `data` is already validated by the route. `userId` is the logged-in moderator.
+// Returns the created items, in code order.
 export async function createItems(data, userId) {
   const { quantity, ...fields } = data;
 

@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getLookups } from '../services/lookupService.js';
 import { createEntry, LIST_NAMES, suggestCode } from '../services/listService.js';
+import { createBuilding, createRoom } from '../services/locationService.js';
 import { SHORT_CODE_PATTERN } from '../services/shortCodeService.js';
 
 // ---------- Validation ----------
@@ -21,6 +22,8 @@ const codeSchema = z
 // z.object drops unknown fields, so a client cannot set id, archived …
 const entrySchema = z.object({ name: nameSchema, code: codeSchema.optional() });
 const categorySchema = entrySchema.extend({ autoApprove: z.boolean().default(false) });
+const buildingSchema = z.object({ campusId: z.number().int().positive(), name: nameSchema });
+const roomSchema = z.object({ buildingId: z.number().int().positive(), name: nameSchema });
 const suggestQuerySchema = z.object({ list: z.enum(LIST_NAMES), name: nameSchema });
 
 // ---------- /api/lookups ----------
@@ -53,4 +56,16 @@ lookupEntriesRouter.post('/brands', async (req, res) => {
 
 lookupEntriesRouter.post('/colours', async (req, res) => {
   res.status(201).json(await createEntry('colour', entrySchema.parse(req.body)));
+});
+
+lookupEntriesRouter.post('/campuses', async (req, res) => {
+  res.status(201).json(await createEntry('campus', entrySchema.parse(req.body)));
+});
+
+lookupEntriesRouter.post('/buildings', async (req, res) => {
+  res.status(201).json(await createBuilding(buildingSchema.parse(req.body)));
+});
+
+lookupEntriesRouter.post('/rooms', async (req, res) => {
+  res.status(201).json(await createRoom(roomSchema.parse(req.body)));
 });

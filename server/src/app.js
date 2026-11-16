@@ -7,6 +7,7 @@ import { originCheck } from './middleware/origin.js';
 import { apiRateLimit } from './middleware/rateLimit.js';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
+import { itemsRouter } from './routes/items.js';
 import { lookupEntriesRouter, lookupsRouter } from './routes/lookups.js';
 
 export function createApp() {
@@ -42,6 +43,7 @@ export function createApp() {
   // API routes (base path /api, see the API contract)
   app.use('/api/health', healthRouter);
   app.use('/api/auth', authRouter);
+  app.use('/api/items', itemsRouter);
   app.use('/api/lookups', lookupsRouter);
   app.use('/api', lookupEntriesRouter);
 

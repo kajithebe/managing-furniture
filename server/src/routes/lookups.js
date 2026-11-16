@@ -50,25 +50,25 @@ export const lookupEntriesRouter = Router();
 const moderator = [requireAuth, requireRole('MODERATOR')];
 
 lookupEntriesRouter.post('/categories', moderator, async (req, res) => {
-  res.status(201).json(await createEntry('category', categorySchema.parse(req.body)));
+  res.status(201).json(await createEntry('category', categorySchema.parse(req.body), req.user.id));
 });
 
 lookupEntriesRouter.post('/brands', moderator, async (req, res) => {
-  res.status(201).json(await createEntry('brand', entrySchema.parse(req.body)));
+  res.status(201).json(await createEntry('brand', entrySchema.parse(req.body), req.user.id));
 });
 
 lookupEntriesRouter.post('/colours', moderator, async (req, res) => {
-  res.status(201).json(await createEntry('colour', entrySchema.parse(req.body)));
+  res.status(201).json(await createEntry('colour', entrySchema.parse(req.body), req.user.id));
 });
 
 lookupEntriesRouter.post('/campuses', moderator, async (req, res) => {
-  res.status(201).json(await createEntry('campus', entrySchema.parse(req.body)));
+  res.status(201).json(await createEntry('campus', entrySchema.parse(req.body), req.user.id));
 });
 
 lookupEntriesRouter.post('/buildings', moderator, async (req, res) => {
-  res.status(201).json(await createBuilding(buildingSchema.parse(req.body)));
+  res.status(201).json(await createBuilding(buildingSchema.parse(req.body), req.user.id));
 });
 
 lookupEntriesRouter.post('/rooms', moderator, async (req, res) => {
-  res.status(201).json(await createRoom(roomSchema.parse(req.body)));
+  res.status(201).json(await createRoom(roomSchema.parse(req.body), req.user.id));
 });

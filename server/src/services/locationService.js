@@ -4,6 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/error.js';
+import { logChange } from './auditService.js';
 
 // 02 › Security: room QR tokens are random (16 characters), never the room name.
 function newQrToken() {
@@ -21,7 +22,8 @@ function duplicateName(name) {
   return new AppError(409, 'DUPLICATE_NAME', `"${name}" already exists.`);
 }
 
-export async function createBuilding({ campusId, name }) {
+// `actorId` is the logged-in moderator or admin.
+export async function createBuilding({ campusId, name }, actorId) {
   await checkParent(prisma.campus, campusId, 'Campus');
 
   const same = await prisma.building.findFirst({
@@ -33,9 +35,19 @@ export async function createBuilding({ campusId, name }) {
   }
 
   try {
-    return await prisma.building.create({
-      data: { campusId, name },
-      select: { id: true, name: true, campusId: true },
+    return await prisma.$transaction(async (tx) => {
+      const building = await tx.building.create({
+        data: { campusId, name },
+        select: { id: true, name: true, campusId: true },
+      });
+      await logChange(tx, {
+        actorId,
+        entity: 'Building',
+        entityId: building.id,
+        action: 'create',
+        after: building,
+      });
+      return building;
     });
   } catch (err) {
     if (err.code === 'P2002') {
@@ -45,7 +57,7 @@ export async function createBuilding({ campusId, name }) {
   }
 }
 
-export async function createRoom({ buildingId, name }) {
+export async function createRoom({ buildingId, name }, actorId) {
   await checkParent(prisma.building, buildingId, 'Building');
 
   const same = await prisma.room.findFirst({
@@ -57,10 +69,20 @@ export async function createRoom({ buildingId, name }) {
   }
 
   try {
-    // qrToken is not returned: door labels (MF-09) read it from the database.
-    return await prisma.room.create({
-      data: { buildingId, name, qrToken: newQrToken() },
-      select: { id: true, name: true, buildingId: true },
+    return await prisma.$transaction(async (tx) => {
+      // qrToken is not returned or logged: door labels (MF-09) read it from the database.
+      const room = await tx.room.create({
+        data: { buildingId, name, qrToken: newQrToken() },
+        select: { id: true, name: true, buildingId: true },
+      });
+      await logChange(tx, {
+        actorId,
+        entity: 'Room',
+        entityId: room.id,
+        action: 'create',
+        after: room,
+      });
+      return room;
     });
   } catch (err) {
     if (err.code === 'P2002') {

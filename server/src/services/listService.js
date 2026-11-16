@@ -3,6 +3,7 @@
 // lower case; short codes are suggested but editable, and unique within their list.
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/error.js';
+import { logChange } from './auditService.js';
 import { suggest } from './shortCodeService.js';
 
 export const LIST_NAMES = ['category', 'brand', 'colour', 'campus'];
@@ -13,6 +14,9 @@ const models = {
   colour: prisma.colour,
   campus: prisma.campus,
 };
+
+// Names used in the AuditLog.
+const entities = { category: 'Category', brand: 'Brand', colour: 'Colour', campus: 'Campus' };
 
 // The fields returned for a created entry (the same as in GET /api/lookups).
 const fields = {
@@ -34,8 +38,8 @@ export async function suggestCode(list, name) {
 }
 
 // Creates one entry. `data` is already validated: { name, code?, autoApprove? }.
-// Without a code, the suggestion is used.
-export async function createEntry(list, { name, code, ...extra }) {
+// Without a code, the suggestion is used. `actorId` is the logged-in moderator or admin.
+export async function createEntry(list, { name, code, ...extra }, actorId) {
   const model = models[list];
 
   const sameName = await model.findFirst({
@@ -57,9 +61,20 @@ export async function createEntry(list, { name, code, ...extra }) {
   }
 
   try {
-    return await model.create({
-      data: { name, code: finalCode, ...extra },
-      select: fields[list],
+    // The entry and its AuditLog row are saved together. tx[list] is e.g. tx.category.
+    return await prisma.$transaction(async (tx) => {
+      const entry = await tx[list].create({
+        data: { name, code: finalCode, ...extra },
+        select: fields[list],
+      });
+      await logChange(tx, {
+        actorId,
+        entity: entities[list],
+        entityId: entry.id,
+        action: 'create',
+        after: entry,
+      });
+      return entry;
     });
   } catch (err) {
     // Two people saved the same name or code at the same moment: the database blocks it.

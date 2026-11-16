@@ -178,6 +178,7 @@ model LoanItem {
   loan               Loan           @relation(fields: [loanId], references: [id])
   itemId             Int
   item               Item           @relation(fields: [itemId], references: [id])
+  fromRoomId         Int?
   status             LoanItemStatus
   decidedById        Int?
   decidedAt          DateTime?

@@ -1,8 +1,10 @@
 // Login routes, mounted at /api/auth. Routes stay thin: validate, call the service, respond.
 import { Router } from 'express';
 import { z } from 'zod';
-import { requestCode, verifyCode } from '../services/authService.js';
-import { startSession } from '../services/sessionService.js';
+import { requireAuth } from '../middleware/auth.js';
+import { publicUser, requestCode, verifyCode } from '../services/authService.js';
+import { endSession, startSession } from '../services/sessionService.js';
+import { updateOwnName } from '../services/userService.js';
 
 export const authRouter = Router();
 
@@ -17,6 +19,7 @@ const code = z
 
 const requestCodeBody = z.object({ email });
 const verifyCodeBody = z.object({ email, code });
+const updateMeBody = z.object({ name: z.string().trim().min(1).max(100) });
 
 // POST /api/auth/request-code – public, same reply whether the email has an account or not.
 authRouter.post('/request-code', async (req, res) => {
@@ -30,4 +33,21 @@ authRouter.post('/verify-code', async (req, res) => {
   const user = await verifyCode(body.email, body.code);
   startSession(res, user.id);
   res.json(user);
+});
+
+// POST /api/auth/logout – user. Deletes the session cookie in the browser.
+authRouter.post('/logout', requireAuth, (req, res) => {
+  endSession(res);
+  res.json({ ok: true });
+});
+
+// GET /api/auth/me – user. The logged-in user (requireAuth loaded it from the database).
+authRouter.get('/me', requireAuth, (req, res) => {
+  res.json(publicUser(req.user));
+});
+
+// PATCH /api/auth/me – user. Change the own name (taken from the email on first login).
+authRouter.patch('/me', requireAuth, async (req, res) => {
+  const body = updateMeBody.parse(req.body);
+  res.json(await updateOwnName(req.user.id, body.name));
 });

@@ -5,7 +5,12 @@ import { prisma } from './db.js';
 
 const app = createApp();
 
-const server = app.listen(env.PORT, () => {
+// Express 5 passes a startup error (e.g. port in use) to this callback.
+const server = app.listen(env.PORT, (err) => {
+  if (err) {
+    console.error(`Server could not start on port ${env.PORT}: ${err.message}`);
+    process.exit(1);
+  }
   console.info(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
 

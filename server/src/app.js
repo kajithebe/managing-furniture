@@ -1,4 +1,5 @@
 // Builds the Express app. server.js starts it; tests can import it without starting a server.
+import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFound } from './middleware/error.js';
@@ -28,6 +29,9 @@ export function createApp() {
 
   // Parse JSON request bodies, max 100 kB.
   app.use(express.json({ limit: '100kb' }));
+
+  // Read cookies into req.cookies (the session cookie is a signed JWT, see sessionService).
+  app.use(cookieParser());
 
   // API routes (base path /api, see the API contract)
   app.use('/api/health', healthRouter);

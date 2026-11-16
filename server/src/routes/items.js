@@ -3,11 +3,18 @@
 // GET  /api/items             moderator  list with filters, search and paging → { data, total }
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
+// PATCH /api/items/:code      moderator  edit details (code read-only); returns the item
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { previewNextCode } from '../services/codeService.js';
-import { createItems, getItem, listItems, SHOWN_STATUSES } from '../services/itemService.js';
+import {
+  createItems,
+  getItem,
+  listItems,
+  SHOWN_STATUSES,
+  updateItem,
+} from '../services/itemService.js';
 
 // ---------- Validation ----------
 
@@ -63,6 +70,20 @@ const createItemSchema = z
     }
   });
 
+// Only the details below can be edited; code, condition, rooms and onLoan are dropped.
+// The wheels rule is checked in the service, together with the item's current values.
+const updateItemSchema = z
+  .object({
+    categoryId: id.optional(),
+    name: z.string().trim().max(100).optional(),
+    brandId: optionalId,
+    colourId: optionalId,
+    hasWheels: z.boolean().optional(),
+    wheelCount: z.number().int().min(1).max(12).nullish(),
+    notes: z.string().trim().max(1000).nullish(),
+  })
+  .refine((changes) => Object.keys(changes).length > 0, 'Nothing to change.');
+
 // ---------- Routes ----------
 
 export const itemsRouter = Router();
@@ -87,4 +108,11 @@ itemsRouter.post('/', async (req, res) => {
   const data = createItemSchema.parse(req.body);
   // TODO: pass req.user.id when MF-07 is merged.
   res.status(201).json(await createItems(data, null));
+});
+
+itemsRouter.patch('/:code', async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  const changes = updateItemSchema.parse(req.body);
+  // TODO: pass req.user.id when MF-07 is merged.
+  res.json(await updateItem(code, changes, null));
 });

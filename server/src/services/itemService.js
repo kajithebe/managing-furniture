@@ -174,3 +174,77 @@ export async function createItems(data, userId) {
     return items.sort((a, b) => a.id - b.id);
   });
 }
+
+// The details a moderator can edit. The code never changes; condition, current room and
+// home room have their own actions with a reason (MF-29); onLoan only changes through loans.
+const EDITABLE_FIELDS = [
+  'name',
+  'categoryId',
+  'brandId',
+  'colourId',
+  'hasWheels',
+  'wheelCount',
+  'notes',
+];
+
+// PATCH /api/items/:code. `changes` is already validated and holds only editable fields.
+export async function updateItem(code, changes, userId) {
+  const item = await prisma.item.findUnique({
+    where: { code },
+    select: { id: true, ...Object.fromEntries(EDITABLE_FIELDS.map((field) => [field, true])) },
+  });
+  if (!item) {
+    throw new AppError(404, 'ITEM_NOT_FOUND', `Item ${code} not found.`);
+  }
+
+  if (changes.categoryId) {
+    await checkActive(prisma.category, changes.categoryId, 'Category');
+  }
+  if (changes.brandId) {
+    await checkActive(prisma.brand, changes.brandId, 'Brand');
+  }
+  if (changes.colourId) {
+    await checkActive(prisma.colour, changes.colourId, 'Colour');
+  }
+
+  const next = { ...item, ...changes };
+  next.notes = next.notes || null;
+
+  // Wheels rule, checked on the result: the request may change only one of the two fields.
+  if (!next.hasWheels) {
+    next.wheelCount = null;
+  } else if (!next.wheelCount) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      'wheelCount: is required (1–12) when the item has wheels',
+    );
+  }
+
+  // An emptied name falls back to the category name, as when creating.
+  if (!next.name) {
+    const category = await prisma.category.findUnique({
+      where: { id: next.categoryId },
+      select: { name: true },
+    });
+    next.name = category.name;
+  }
+
+  const changed = EDITABLE_FIELDS.filter((field) => next[field] !== item[field]);
+  if (changed.length === 0) {
+    return getItem(code);
+  }
+
+  await prisma.$transaction([
+    prisma.item.update({
+      where: { id: item.id },
+      data: Object.fromEntries(changed.map((field) => [field, next[field]])),
+    }),
+    // Item history: which fields changed (names only, no user text).
+    prisma.itemEvent.create({
+      data: { itemId: item.id, type: 'EDITED', userId, note: `Changed: ${changed.join(', ')}` },
+    }),
+  ]);
+
+  return getItem(code);
+}

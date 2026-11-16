@@ -1,11 +1,13 @@
 // Item routes (02 › API contract).
 // GET  /api/items/next-code   moderator  preview of the next asset code
+// GET  /api/items             moderator  list with filters, search and paging → { data, total }
+// GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { previewNextCode } from '../services/codeService.js';
-import { createItems } from '../services/itemService.js';
+import { createItems, getItem, listItems, SHOWN_STATUSES } from '../services/itemService.js';
 
 // ---------- Validation ----------
 
@@ -21,6 +23,18 @@ const nextCodeQuerySchema = z.object({
   brandId: queryId,
   colourId: queryId,
 });
+
+const listQuerySchema = z.object({
+  category: queryId,
+  room: queryId,
+  status: z.enum(SHOWN_STATUSES).optional(),
+  q: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+// Codes are stored in upper case; a typed code may be lower case.
+const codeParamSchema = z.object({ code: z.string().trim().toUpperCase().min(1).max(30) });
 
 // z.object drops unknown fields, so a client cannot set code, onLoan, createdById …
 const createItemSchema = z
@@ -53,10 +67,20 @@ const createItemSchema = z
 
 export const itemsRouter = Router();
 
-// TODO: add requireAuth + requireRole('MODERATOR') to both routes when MF-07 is merged.
+// TODO: add requireAuth (+ requireRole('MODERATOR') except on GET /:code) when MF-07 is merged.
+itemsRouter.get('/', async (req, res) => {
+  res.json(await listItems(listQuerySchema.parse(req.query)));
+});
+
+// Must stay above /:code, otherwise "next-code" would be read as an item code.
 itemsRouter.get('/next-code', async (req, res) => {
   nextCodeQuerySchema.parse(req.query);
   res.json({ code: await previewNextCode(prisma) });
+});
+
+itemsRouter.get('/:code', async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  res.json(await getItem(code));
 });
 
 itemsRouter.post('/', async (req, res) => {

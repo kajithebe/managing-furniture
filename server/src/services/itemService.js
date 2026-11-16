@@ -23,6 +23,101 @@ const itemFields = {
   createdAt: true,
 };
 
+// Room with its building and campus, e.g. for "Karaportti · D · D569".
+const roomFields = {
+  select: {
+    id: true,
+    name: true,
+    building: { select: { id: true, name: true, campus: { select: { id: true, name: true } } } },
+  },
+};
+
+// Single item: with category rule, brand, colour and both rooms.
+const itemDetailFields = {
+  ...itemFields,
+  category: { select: { id: true, name: true, code: true, autoApprove: true } },
+  brand: { select: { id: true, name: true } },
+  colour: { select: { id: true, name: true } },
+  homeRoom: roomFields,
+  currentRoom: roomFields,
+};
+
+// 02 › Item status shown in the app: condition and loan state are stored separately.
+export const SHOWN_STATUSES = [
+  'AVAILABLE',
+  'ON_LOAN',
+  'NEEDS_REPAIR',
+  'BROKEN',
+  'IN_REPAIR',
+  'DISPOSED',
+];
+
+function shownStatus(item) {
+  if (item.onLoan) {
+    return 'ON_LOAN';
+  }
+  return item.condition === 'GOOD' ? 'AVAILABLE' : item.condition;
+}
+
+// Adds the shown status and whether the item can be borrowed (02 › status table).
+function withStatus(item) {
+  return {
+    ...item,
+    status: shownStatus(item),
+    borrowable: !item.onLoan && ['GOOD', 'NEEDS_REPAIR'].includes(item.condition),
+  };
+}
+
+// The database filter for one shown status.
+function statusWhere(status) {
+  if (status === 'ON_LOAN') {
+    return { onLoan: true };
+  }
+  return { onLoan: false, condition: status === 'AVAILABLE' ? 'GOOD' : status };
+}
+
+// GET /api/items/:code
+export async function getItem(code) {
+  const item = await prisma.item.findUnique({ where: { code }, select: itemDetailFields });
+  if (!item) {
+    throw new AppError(404, 'ITEM_NOT_FOUND', `Item ${code} not found.`);
+  }
+  return withStatus(item);
+}
+
+// GET /api/items: filters, search on code and name, paging. Disposed items are hidden
+// unless the DISPOSED status is asked for.
+export async function listItems({ category, room, status, q, page, pageSize }) {
+  const where = {
+    ...(category && { categoryId: category }),
+    ...(room && { OR: [{ homeRoomId: room }, { currentRoomId: room }] }),
+    ...(status ? statusWhere(status) : { condition: { not: 'DISPOSED' } }),
+    ...(q && {
+      AND: [
+        {
+          OR: [
+            { code: { contains: q, mode: 'insensitive' } },
+            { name: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+      ],
+    }),
+  };
+
+  const [items, total] = await prisma.$transaction([
+    prisma.item.findMany({
+      where,
+      select: itemDetailFields,
+      orderBy: { code: 'asc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.item.count({ where }),
+  ]);
+
+  return { data: items.map(withStatus), total };
+}
+
 // Checks that a referenced category, brand, colour or room exists and is not archived.
 async function checkActive(model, id, label) {
   const row = await model.findUnique({ where: { id }, select: { archived: true, name: true } });

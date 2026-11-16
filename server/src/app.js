@@ -4,6 +4,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFound } from './middleware/error.js';
 import { originCheck } from './middleware/origin.js';
+import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 
 export function createApp() {
@@ -35,6 +36,7 @@ export function createApp() {
 
   // API routes (base path /api, see the API contract)
   app.use('/api/health', healthRouter);
+  app.use('/api/auth', authRouter);
 
   // These two must stay last: first "nothing matched", then the error handler.
   app.use(notFound);

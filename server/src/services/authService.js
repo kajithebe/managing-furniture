@@ -23,7 +23,7 @@ function assertAllowedEmail(email) {
     throw new AppError(
       400,
       'EMAIL_DOMAIN_NOT_ALLOWED',
-      `Use your @${env.ALLOWED_EMAIL_DOMAIN} email address.`,
+      `Use your @${env.ALLOWED_EMAIL_DOMAIN} address`,
     );
   }
 }
@@ -126,23 +126,29 @@ async function findOrCreateUser(email) {
   });
 }
 
+// S2 (design-screens): "Wrong code. 3 tries left." The plural is fixed for one try left.
+function wrongCode(triesLeft) {
+  const tries = triesLeft === 1 ? 'try' : 'tries';
+  return new AppError(400, 'CODE_WRONG', `Wrong code. ${triesLeft} ${tries} left.`, { triesLeft });
+}
+
+// S2 (design-screens): used for an expired code, a used-up code (no tries left, already used)
+// and when no code was requested. The user's next step is the same: send a new code.
+function expiredCode() {
+  return new AppError(400, 'CODE_EXPIRED', 'This code has expired. Send a new code.');
+}
+
 // Checks the code and returns the logged-in user. The route then starts the session.
 export async function verifyCode(email, code) {
   assertAllowedEmail(email);
 
-  const invalid = new AppError(
-    400,
-    'CODE_INVALID',
-    'The code is wrong or has expired. Please request a new code.',
-  );
-
-  // Only the newest code that is still usable counts.
+  // Only the newest unused code counts; an older code is replaced by a new request.
   const otp = await prisma.otpCode.findFirst({
-    where: { email, usedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: MAX_ATTEMPTS } },
+    where: { email, usedAt: null },
     orderBy: { createdAt: 'desc' },
   });
-  if (!otp) {
-    throw invalid;
+  if (!otp || otp.expiresAt <= new Date() || otp.attempts >= MAX_ATTEMPTS) {
+    throw expiredCode();
   }
 
   if (!(await bcrypt.compare(code, otp.codeHash))) {
@@ -150,10 +156,9 @@ export async function verifyCode(email, code) {
       where: { id: otp.id },
       data: { attempts: { increment: 1 } },
     });
-    if (attempts >= MAX_ATTEMPTS) {
-      throw new AppError(400, 'CODE_INVALID', 'Too many wrong tries. Please request a new code.');
-    }
-    throw invalid;
+    const triesLeft = MAX_ATTEMPTS - attempts;
+    // The last wrong try uses the code up: the screen then asks for a new code.
+    throw triesLeft > 0 ? wrongCode(triesLeft) : expiredCode();
   }
 
   // Single use: mark this code as used, only if nobody used it a moment ago (two tabs).
@@ -162,7 +167,7 @@ export async function verifyCode(email, code) {
     data: { usedAt: new Date() },
   });
   if (count === 0) {
-    throw invalid;
+    throw expiredCode();
   }
   // Older open codes for this email are no longer needed either.
   await prisma.otpCode.updateMany({

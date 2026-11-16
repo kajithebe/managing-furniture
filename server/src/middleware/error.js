@@ -5,12 +5,14 @@ import { isProduction } from '../config/env.js';
 
 // Throw this from routes and services for expected errors, for example:
 // throw new AppError(400, 'LOAN_TOO_LONG', 'Until time is longer than 4 hours.');
+// `details` are extra values a screen needs, sent inside "error", e.g. { triesLeft: 3 }.
 export class AppError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details = {}) {
     super(message);
     this.name = 'AppError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -29,11 +31,13 @@ export function errorHandler(err, req, res, next) {
   let status = 500;
   let code = 'INTERNAL_ERROR';
   let message = 'Something went wrong.';
+  let details = {};
 
   if (err instanceof AppError) {
     status = err.status;
     code = err.code;
     message = err.message;
+    details = err.details;
   } else if (err instanceof ZodError) {
     status = 400;
     code = 'VALIDATION_ERROR';
@@ -57,7 +61,7 @@ export function errorHandler(err, req, res, next) {
     console.error(`${req.method} ${req.originalUrl} failed:`, err.stack || err);
   }
 
-  const body = { error: { code, message } };
+  const body = { error: { code, message, ...details } };
   // Stack traces help while developing, but are never sent in production.
   if (status >= 500 && !isProduction) {
     body.error.stack = err.stack;

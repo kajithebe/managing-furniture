@@ -4,6 +4,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFound } from './middleware/error.js';
 import { originCheck } from './middleware/origin.js';
+import { apiRateLimit } from './middleware/rateLimit.js';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 
@@ -24,6 +25,9 @@ export function createApp() {
       },
     }),
   );
+
+  // Max 300 API requests per 15 minutes per IP, checked before any other work.
+  app.use('/api', apiRateLimit);
 
   // Reject cross-site POST/PUT/PATCH/DELETE before reading the body.
   app.use(originCheck);

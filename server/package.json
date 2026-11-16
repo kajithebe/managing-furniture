@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "node --watch --env-file-if-exists=../.env src/server.js",
+    "dev": "node --watch-path=src --env-file-if-exists=../.env src/server.js",
     "start": "node src/server.js",
     "predev": "prisma generate",
     "db:generate": "prisma generate",

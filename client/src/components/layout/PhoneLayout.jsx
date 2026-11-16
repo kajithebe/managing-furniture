@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth.js';
 
 function getInitials(user) {
   const source = user.name?.trim() || user.email.split('@')[0];
@@ -10,8 +11,7 @@ function getInitials(user) {
 }
 
 export default function PhoneLayout() {
-  // TODO(MF-11): get the logged-in user from useAuth().
-  const user = null;
+  const { user } = useAuth();
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-page">

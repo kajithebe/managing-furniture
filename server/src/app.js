@@ -11,6 +11,7 @@ import { apiRateLimit } from './middleware/rateLimit.js';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 import { itemsRouter } from './routes/items.js';
+import { loansRouter } from './routes/loans.js';
 import { lookupEntriesRouter, lookupsRouter } from './routes/lookups.js';
 
 // The built React app (npm run build in client/). In production Express serves it, so the API
@@ -58,6 +59,7 @@ export function createApp({ clientDist = DEFAULT_CLIENT_DIST } = {}) {
   app.use('/api/health', healthRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/items', itemsRouter);
+  app.use('/api/loans', loansRouter);
   app.use('/api/lookups', lookupsRouter);
   app.use('/api', lookupEntriesRouter);
 

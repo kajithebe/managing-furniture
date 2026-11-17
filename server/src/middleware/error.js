@@ -61,7 +61,7 @@ export function errorHandler(err, req, res, next) {
     console.error(`${req.method} ${req.originalUrl} failed:`, err.stack || err);
   }
 
-  const body = { error: { code, message, ...details } };
+  const body = { error: { ...details, code, message } };
   // Stack traces help while developing, but are never sent in production.
   if (status >= 500 && !isProduction) {
     body.error.stack = err.stack;

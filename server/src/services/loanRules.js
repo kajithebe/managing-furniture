@@ -64,7 +64,7 @@ export function itemNotFound(code) {
     404,
     'ITEM_NOT_FOUND',
     `We couldn't find item ${code}. Check the code on the sticker.`,
-    { code },
+    { itemCode: code },
   );
 }
 

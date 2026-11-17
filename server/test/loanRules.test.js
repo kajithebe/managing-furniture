@@ -87,7 +87,7 @@ describe('itemNotFound', () => {
     expect(error.status).toBe(404);
     expect(error.code).toBe('ITEM_NOT_FOUND');
     expect(error.message).toBe("We couldn't find item MP-99999. Check the code on the sticker.");
-    expect(error.details).toEqual({ code: 'MP-99999' });
+    expect(error.details).toEqual({ itemCode: 'MP-99999' });
   });
 });
 

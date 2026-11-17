@@ -106,30 +106,81 @@ export async function getItem(code) {
   return { ...withStatus(item), createdBy };
 }
 
-// GET /api/items: filters, search on code and name, paging. Disposed items are hidden
-// unless the DISPOSED status is asked for.
-export async function listItems({ category, room, status, q, page, pageSize }) {
-  const where = {
-    ...(category && { categoryId: category }),
-    ...(room && { OR: [{ homeRoomId: room }, { currentRoomId: room }] }),
-    ...(status ? statusWhere(status) : { condition: { not: 'DISPOSED' } }),
-    ...(q && {
-      AND: [
-        {
-          OR: [
-            { code: { contains: q, mode: 'insensitive' } },
-            { name: { contains: q, mode: 'insensitive' } },
-          ],
-        },
-      ],
-    }),
+// sortable columns → database order. The code is always added last, so rows with the
+// same value (e.g. many "Chair") keep a stable order across pages.
+export const SORT_COLUMNS = [
+  'code',
+  'name',
+  'category',
+  'brand',
+  'colour',
+  'wheels',
+  'homeRoom',
+  'currentRoom',
+  'status',
+];
+
+function orderBy(sort, order) {
+  const columns = {
+    code: [],
+    name: [{ name: order }],
+    category: [{ category: { name: order } }],
+    brand: [{ brand: { name: order } }],
+    colour: [{ colour: { name: order } }],
+    wheels: [{ hasWheels: order }, { wheelCount: order }],
+    homeRoom: [{ homeRoom: { name: order } }],
+    currentRoom: [{ currentRoom: { name: order } }],
+    // Shown status: free items first, then by condition (Available, Needs repair, …).
+    status: [{ onLoan: order }, { condition: order }],
   };
+  return [...columns[sort], { code: sort === 'code' ? order : 'asc' }];
+}
+
+// A room filter (campus, building or room) matches the item's home room or current room.
+function roomWhere(roomFilter) {
+  return { OR: [{ homeRoom: roomFilter }, { currentRoom: roomFilter }] };
+}
+
+// GET /api/items (M5): filters, search on code, name and brand, sorting and paging.
+// Disposed items are hidden unless showDisposed is on or the Disposed status is chosen.
+export async function listItems(query) {
+  const { category, campus, building, room, status, showDisposed, q } = query;
+  const { sort, order, page, pageSize } = query;
+
+  const conditions = [];
+  if (category) {
+    conditions.push({ categoryId: category });
+  }
+  if (campus) {
+    conditions.push(roomWhere({ building: { campusId: campus } }));
+  }
+  if (building) {
+    conditions.push(roomWhere({ buildingId: building }));
+  }
+  if (room) {
+    conditions.push(roomWhere({ id: room }));
+  }
+  if (status) {
+    conditions.push(statusWhere(status));
+  } else if (!showDisposed) {
+    conditions.push({ condition: { not: 'DISPOSED' } });
+  }
+  if (q) {
+    conditions.push({
+      OR: [
+        { code: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { brand: { name: { contains: q, mode: 'insensitive' } } },
+      ],
+    });
+  }
+  const where = { AND: conditions };
 
   const [items, total] = await prisma.$transaction([
     prisma.item.findMany({
       where,
       select: itemDetailFields,
-      orderBy: { code: 'asc' },
+      orderBy: orderBy(sort, order),
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

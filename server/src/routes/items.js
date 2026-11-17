@@ -1,6 +1,6 @@
 // Item routes (02 › API contract).
 // GET  /api/items/next-code   moderator  first and last code of the next `quantity` items
-// GET  /api/items             moderator  list with filters, search and paging → { data, total }
+// GET  /api/items             moderator  M5 list: filters, search, sorting, paging → { data, total }
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
 // PATCH /api/items/:code      moderator  edit details (code read-only); returns the item
@@ -14,6 +14,7 @@ import {
   getItem,
   listItems,
   SHOWN_STATUSES,
+  SORT_COLUMNS,
   updateItem,
 } from '../services/itemService.js';
 
@@ -35,11 +36,17 @@ const nextCodeQuerySchema = z.object({
 
 const listQuerySchema = z.object({
   category: queryId,
+  campus: queryId,
+  building: queryId,
   room: queryId,
   status: z.enum(SHOWN_STATUSES).optional(),
+  // "true" / "false" from the "Show disposed items" toggle.
+  showDisposed: z.stringbool().default(false),
   q: z.string().trim().max(100).optional(),
+  sort: z.enum(SORT_COLUMNS).default('code'),
+  order: z.enum(['asc', 'desc']).default('asc'),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
 
 // Codes are stored in upper case; a typed code may be lower case.

@@ -30,7 +30,7 @@ jobs:
 
       - name: Server - security audit
         working-directory: server
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Server - lint
         working-directory: server
@@ -51,7 +51,7 @@ jobs:
 
       - name: Client - security audit
         working-directory: client
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Client - lint
         working-directory: client

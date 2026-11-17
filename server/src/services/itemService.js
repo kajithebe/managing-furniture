@@ -20,6 +20,7 @@ const itemFields = {
   currentRoomId: true,
   condition: true,
   onLoan: true,
+  createdById: true,
   createdAt: true,
 };
 
@@ -92,7 +93,17 @@ export async function getItem(code) {
   if (!item) {
     throw itemNotFound(code);
   }
-  return withStatus(item);
+
+  // M7 "Created by Mikko Laine · 5 Nov 2026, 10:00": the creator's name (no email).
+  // Item.createdById has no relation in the schema, so the user is read separately.
+  const createdBy = item.createdById
+    ? await prisma.user.findUnique({
+        where: { id: item.createdById },
+        select: { id: true, name: true },
+      })
+    : null;
+
+  return { ...withStatus(item), createdBy };
 }
 
 // GET /api/items: filters, search on code and name, paging. Disposed items are hidden

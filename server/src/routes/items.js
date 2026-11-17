@@ -1,5 +1,5 @@
 // Item routes (02 › API contract).
-// GET  /api/items/next-code   moderator  preview of the next asset code
+// GET  /api/items/next-code   moderator  first and last code of the next `quantity` items
 // GET  /api/items             moderator  list with filters, search and paging → { data, total }
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
@@ -8,7 +8,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { previewNextCode } from '../services/codeService.js';
+import { previewCodes } from '../services/codeService.js';
 import {
   createItems,
   getItem,
@@ -26,6 +26,7 @@ const optionalId = id.nullish();
 // Sprint 1 ignores them; the code scheme (MF-21) uses them for campus, category … segments.
 const queryId = z.coerce.number().int().positive().optional();
 const nextCodeQuerySchema = z.object({
+  quantity: z.coerce.number().int().min(1).max(200).default(1),
   categoryId: queryId,
   homeRoomId: queryId,
   brandId: queryId,
@@ -98,8 +99,8 @@ itemsRouter.get('/', moderator, async (req, res) => {
 
 // Must stay above /:code, otherwise "next-code" would be read as an item code.
 itemsRouter.get('/next-code', moderator, async (req, res) => {
-  nextCodeQuerySchema.parse(req.query);
-  res.json({ code: await previewNextCode(prisma) });
+  const { quantity } = nextCodeQuerySchema.parse(req.query);
+  res.json(await previewCodes(prisma, quantity));
 });
 
 // Every logged-in user: this is the page a QR scan opens.

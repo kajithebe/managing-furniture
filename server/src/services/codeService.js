@@ -65,10 +65,11 @@ export async function nextCode(tx) {
   return code;
 }
 
-// The code the next new item will get, for the preview in the add-item form.
-// Read only: it does not use up a number, so the real code can differ if someone
+// The codes the next `quantity` new items will get, for the preview on M6:
+// "Next code: MP-00127" (quantity 1, first = last) or "Codes: MP-00127 – MP-00156".
+// Read only: it does not use up numbers, so the real codes can differ if someone
 // else saves an item first.
-export async function previewNextCode(db) {
+export async function previewCodes(db, quantity = 1) {
   const setting = await db.setting.findUnique({
     where: { id: SETTINGS_ID },
     select: { nextNumber: true, codeScheme: true },
@@ -76,5 +77,8 @@ export async function previewNextCode(db) {
   if (!setting) {
     throw new AppError(500, 'SETTINGS_MISSING', 'Settings are missing. Run the seed.');
   }
-  return buildCode(setting.codeScheme, setting.nextNumber);
+  return {
+    first: buildCode(setting.codeScheme, setting.nextNumber),
+    last: buildCode(setting.codeScheme, setting.nextNumber + quantity - 1),
+  };
 }

@@ -35,7 +35,7 @@ const loanFields = {
 
 // Loan.toRoomId and LoanItem.fromRoomId are plain ids (02 › data model),
 // so their room names are loaded in one extra query.
-async function roomsById(ids) {
+export async function roomsById(ids) {
   const rooms = await prisma.room.findMany({
     where: { id: { in: [...new Set(ids.filter(Boolean))] } },
     select: { id: true, name: true },

@@ -13,6 +13,7 @@ import { healthRouter } from './routes/health.js';
 import { itemsRouter } from './routes/items.js';
 import { loansRouter } from './routes/loans.js';
 import { lookupEntriesRouter, lookupsRouter } from './routes/lookups.js';
+import { moderatorRouter } from './routes/moderator.js';
 
 // The built React app (npm run build in client/). In production Express serves it, so the API
 // and the screens come from one origin (02 › Security: no CORS).
@@ -61,6 +62,7 @@ export function createApp({ clientDist = DEFAULT_CLIENT_DIST } = {}) {
   app.use('/api/items', itemsRouter);
   app.use('/api/loans', loansRouter);
   app.use('/api/lookups', lookupsRouter);
+  app.use('/api/moderator', moderatorRouter);
   app.use('/api', lookupEntriesRouter);
 
   // An unknown /api path is a JSON 404, never the React page.

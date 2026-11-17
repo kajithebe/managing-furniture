@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
-import { createLoan } from '../services/loanService.js';
+import { createLoan, listMyLoans } from '../services/loanService.js';
 
 export const loansRouter = Router();
 
@@ -27,4 +27,9 @@ const createLoanBody = z.object({
 loansRouter.post('/', requireAuth, async (req, res) => {
   const body = createLoanBody.parse(req.body);
   res.status(201).json(await createLoan(req.user.id, body));
+});
+
+// GET /api/loans/mine – user. S7 My loans: { open: [...], recent: [...] }.
+loansRouter.get('/mine', requireAuth, async (req, res) => {
+  res.json(await listMyLoans(req.user.id));
 });

@@ -164,3 +164,27 @@ export async function createLoan(userId, { itemCodes, toRoomId, dueAt, reason })
   const [view] = await loanViews([loan]);
   return view;
 }
+
+// How many closed loans S7 shows under "Recent loans".
+const RECENT_LOANS = 5;
+
+// GET /api/loans/mine (S7 My loans): the user's open loans, the one due first on top,
+// then their last 5 closed loans, newest first. Only the logged-in user's own loans.
+export async function listMyLoans(userId) {
+  const [open, recent] = await Promise.all([
+    prisma.loan.findMany({
+      where: { userId, status: 'OPEN' },
+      orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],
+      select: loanFields,
+    }),
+    prisma.loan.findMany({
+      where: { userId, status: 'CLOSED' },
+      orderBy: [{ closedAt: 'desc' }, { id: 'desc' }],
+      take: RECENT_LOANS,
+      select: loanFields,
+    }),
+  ]);
+
+  const views = await loanViews([...open, ...recent]);
+  return { open: views.slice(0, open.length), recent: views.slice(open.length) };
+}

@@ -37,27 +37,42 @@ export async function suggestCode(list, name) {
   return suggest(name, await takenCodes(list));
 }
 
-// Creates one entry. `data` is already validated: { name, code?, autoApprove? }.
-// Without a code, the suggestion is used. `actorId` is the logged-in moderator or admin.
-export async function createEntry(list, { name, code, ...extra }, actorId) {
+// The entry that blocks a new name or short code, as an error with the pop-up text (P1–P4):
+// "Chair already exists" (with the existing entry for the "Use Chair" button) or
+// "CHR is already used by Chair". Returns null when nothing blocks.
+async function findDuplicate(list, name, code) {
   const model = models[list];
 
   const sameName = await model.findFirst({
     where: { name: { equals: name, mode: 'insensitive' } },
-    select: { id: true },
+    select: fields[list],
   });
   if (sameName) {
-    throw new AppError(409, 'DUPLICATE_NAME', `"${name}" already exists.`);
+    return new AppError(409, 'DUPLICATE_NAME', `${sameName.name} already exists`, {
+      existing: sameName,
+    });
+  }
+
+  if (code) {
+    const sameCode = await model.findUnique({ where: { code }, select: { name: true } });
+    if (sameCode) {
+      return new AppError(409, 'DUPLICATE_CODE', `${code} is already used by ${sameCode.name}`);
+    }
+  }
+  return null;
+}
+
+// Creates one entry. `data` is already validated: { name, code?, autoApprove? }.
+// Without a code, the suggestion is used. `actorId` is the logged-in moderator or admin.
+export async function createEntry(list, { name, code, ...extra }, actorId) {
+  const duplicate = await findDuplicate(list, name, code);
+  if (duplicate) {
+    throw duplicate;
   }
 
   const finalCode = code ?? (await suggestCode(list, name));
   if (!finalCode) {
     throw new AppError(400, 'CODE_REQUIRED', 'Enter a short code.');
-  }
-
-  const sameCode = await model.findUnique({ where: { code: finalCode }, select: { id: true } });
-  if (sameCode) {
-    throw new AppError(409, 'DUPLICATE_CODE', `Short code ${finalCode} is already used.`);
   }
 
   try {
@@ -77,9 +92,10 @@ export async function createEntry(list, { name, code, ...extra }, actorId) {
       return entry;
     });
   } catch (err) {
-    // Two people saved the same name or code at the same moment: the database blocks it.
+    // Someone saved the same name or code at the same moment and the database blocked it:
+    // look again, so the pop-up still gets the right message.
     if (err.code === 'P2002') {
-      throw new AppError(409, 'DUPLICATE_NAME', 'This name or short code already exists.');
+      throw (await findDuplicate(list, name, finalCode)) ?? err;
     }
     throw err;
   }

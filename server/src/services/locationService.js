@@ -11,27 +11,51 @@ function newQrToken() {
   return randomBytes(12).toString('base64url');
 }
 
+// Returns the parent's name for the messages below.
 async function checkParent(model, id, label) {
-  const parent = await model.findUnique({ where: { id }, select: { archived: true } });
+  const parent = await model.findUnique({ where: { id }, select: { archived: true, name: true } });
   if (!parent || parent.archived) {
     throw new AppError(400, 'INVALID_PARENT', `${label} not found.`);
   }
+  return parent;
 }
 
-function duplicateName(name) {
-  return new AppError(409, 'DUPLICATE_NAME', `"${name}" already exists.`);
+// P5: a building with this name in the campus. Returns the error, or null.
+async function findDuplicateBuilding(campusId, name, campusName) {
+  const existing = await prisma.building.findFirst({
+    where: { campusId, name: { equals: name, mode: 'insensitive' } },
+    select: { id: true, name: true, campusId: true },
+  });
+  return existing
+    ? new AppError(409, 'DUPLICATE_NAME', `${existing.name} already exists in ${campusName}`, {
+        existing,
+      })
+    : null;
+}
+
+// P6: "D575 already exists in building D", with the room for the "Use D575" button.
+async function findDuplicateRoom(buildingId, name, buildingName) {
+  const existing = await prisma.room.findFirst({
+    where: { buildingId, name: { equals: name, mode: 'insensitive' } },
+    select: { id: true, name: true, buildingId: true },
+  });
+  return existing
+    ? new AppError(
+        409,
+        'DUPLICATE_NAME',
+        `${existing.name} already exists in building ${buildingName}`,
+        { existing },
+      )
+    : null;
 }
 
 // `actorId` is the logged-in moderator or admin.
 export async function createBuilding({ campusId, name }, actorId) {
-  await checkParent(prisma.campus, campusId, 'Campus');
+  const campus = await checkParent(prisma.campus, campusId, 'Campus');
 
-  const same = await prisma.building.findFirst({
-    where: { campusId, name: { equals: name, mode: 'insensitive' } },
-    select: { id: true },
-  });
-  if (same) {
-    throw duplicateName(name);
+  const duplicate = await findDuplicateBuilding(campusId, name, campus.name);
+  if (duplicate) {
+    throw duplicate;
   }
 
   try {
@@ -50,22 +74,20 @@ export async function createBuilding({ campusId, name }, actorId) {
       return building;
     });
   } catch (err) {
+    // Saved by someone else at the same moment: look again for the right message.
     if (err.code === 'P2002') {
-      throw duplicateName(name);
+      throw (await findDuplicateBuilding(campusId, name, campus.name)) ?? err;
     }
     throw err;
   }
 }
 
 export async function createRoom({ buildingId, name }, actorId) {
-  await checkParent(prisma.building, buildingId, 'Building');
+  const building = await checkParent(prisma.building, buildingId, 'Building');
 
-  const same = await prisma.room.findFirst({
-    where: { buildingId, name: { equals: name, mode: 'insensitive' } },
-    select: { id: true },
-  });
-  if (same) {
-    throw duplicateName(name);
+  const duplicate = await findDuplicateRoom(buildingId, name, building.name);
+  if (duplicate) {
+    throw duplicate;
   }
 
   try {
@@ -86,7 +108,7 @@ export async function createRoom({ buildingId, name }, actorId) {
     });
   } catch (err) {
     if (err.code === 'P2002') {
-      throw duplicateName(name);
+      throw (await findDuplicateRoom(buildingId, name, building.name)) ?? err;
     }
     throw err;
   }

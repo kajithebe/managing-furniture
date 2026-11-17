@@ -76,11 +76,21 @@ function statusWhere(status) {
   return { onLoan: false, condition: status === 'AVAILABLE' ? 'GOOD' : status };
 }
 
+// S3 "Item not found": the scanned or typed code, in the screen's wording.
+function itemNotFound(code) {
+  return new AppError(
+    404,
+    'ITEM_NOT_FOUND',
+    `We couldn't find item ${code}. Check the code on the sticker.`,
+    { itemCode: code },
+  );
+}
+
 // GET /api/items/:code
 export async function getItem(code) {
   const item = await prisma.item.findUnique({ where: { code }, select: itemDetailFields });
   if (!item) {
-    throw new AppError(404, 'ITEM_NOT_FOUND', `Item ${code} not found.`);
+    throw itemNotFound(code);
   }
   return withStatus(item);
 }
@@ -194,7 +204,7 @@ export async function updateItem(code, changes, userId) {
     select: { id: true, ...Object.fromEntries(EDITABLE_FIELDS.map((field) => [field, true])) },
   });
   if (!item) {
-    throw new AppError(404, 'ITEM_NOT_FOUND', `Item ${code} not found.`);
+    throw itemNotFound(code);
   }
 
   if (changes.categoryId) {

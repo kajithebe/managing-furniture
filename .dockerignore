@@ -1,0 +1,10 @@
+# Kept out of the Docker image: secrets, local installs and build output.
+.env
+.env.*
+!.env.example
+**/node_modules
+client/dist
+.git
+.github
+**/*.log
+**/coverage

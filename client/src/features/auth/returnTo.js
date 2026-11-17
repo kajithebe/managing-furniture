@@ -19,3 +19,15 @@ export function loginPathFor(location) {
   const target = `${location.pathname}${location.search}`;
   return `/login?returnTo=${encodeURIComponent(target)}`;
 }
+
+// S1 "You scanned MP-00123": the item code when returnTo is an item page (/i/<code>), else null.
+// Only the code is shown: item details need a login (needs team agreement for "· Chair").
+export function scannedItemCode(returnTo) {
+  const match = /^\/i\/([^/?#]+)/.exec(returnTo ?? '');
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}

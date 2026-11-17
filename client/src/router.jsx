@@ -4,6 +4,7 @@ import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
 
 const placeholder = (title) => <PlaceholderPage title={title} />;
 
@@ -18,7 +19,7 @@ export const router = createBrowserRouter([
     element: <PhoneLayout />,
     children: [
       // Public: the login screens.
-      { path: '/login', element: placeholder('Log in') },
+      { path: '/login', element: <LoginPage /> },
       { path: '/login/code', element: placeholder('Enter code') },
 
       // Everything else needs a login (any role).

@@ -1,4 +1,7 @@
 // Builds the Express app. server.js starts it; tests can import it without starting a server.
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
@@ -10,11 +13,22 @@ import { healthRouter } from './routes/health.js';
 import { itemsRouter } from './routes/items.js';
 import { lookupEntriesRouter, lookupsRouter } from './routes/lookups.js';
 
-export function createApp() {
+// The built React app (npm run build in client/). In production Express serves it, so the API
+// and the screens come from one origin (02 › Security: no CORS).
+const DEFAULT_CLIENT_DIST = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../client/dist',
+);
+
+export function createApp({ clientDist = DEFAULT_CLIENT_DIST } = {}) {
   const app = express();
 
   // Do not tell clients which framework we use.
   app.disable('x-powered-by');
+
+  // On Render (and at Metropolia) one proxy sits in front of the app and adds HTTPS. Trusting it
+  // gives the real client IP to the rate limit and lets secure cookies work (02 › Deployment).
+  app.set('trust proxy', 1);
 
   // Security headers: helmet's default Content Security Policy,
   // plus data: images, because QR codes are shown as data: images.
@@ -46,6 +60,18 @@ export function createApp() {
   app.use('/api/items', itemsRouter);
   app.use('/api/lookups', lookupsRouter);
   app.use('/api', lookupEntriesRouter);
+
+  // An unknown /api path is a JSON 404, never the React page.
+  app.use('/api', notFound);
+
+  // The screens: built files from client/dist, and index.html for every other GET, so React
+  // Router can open /loans, /i/MP-00123 … directly. Only when the client has been built.
+  if (existsSync(path.join(clientDist, 'index.html'))) {
+    app.use(express.static(clientDist, { index: false }));
+    app.get(/^(?!\/api\/).*/, (req, res) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
 
   // These two must stay last: first "nothing matched", then the error handler.
   app.use(notFound);

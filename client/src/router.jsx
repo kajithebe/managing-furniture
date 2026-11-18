@@ -6,6 +6,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 
 const placeholder = (title) => <PlaceholderPage title={title} />;
 
@@ -32,7 +33,7 @@ export const router = createBrowserRouter([
           { path: '/loans', element: placeholder('My loans') },
           { path: '/return/:loanId', element: placeholder('Return items') },
           { path: '/r/:qrToken', element: placeholder('Room') },
-          { path: '/profile', element: placeholder('Profile') },
+          { path: '/profile', element: <ProfilePage /> },
         ],
       },
     ],

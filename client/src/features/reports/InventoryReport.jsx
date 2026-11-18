@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getLookups } from '../../api/lookups.js';
-import { getInventoryReport } from '../../api/reports.js';
+import { downloadInventoryCsv, getInventoryReport } from '../../api/reports.js';
 import Badge from '../../components/ui/Badge.jsx';
+import Button from '../../components/ui/Button.jsx';
 import Select from '../../components/ui/Select.jsx';
 import Table from '../../components/ui/Table.jsx';
 import Pagination from './Pagination.jsx';
@@ -68,6 +69,8 @@ export default function InventoryReport() {
   const [page, setPage] = useState(1);
   // The last answer from the API, together with the query it belongs to.
   const [result, setResult] = useState({ params: null, data: [], total: 0, error: '' });
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   const params = useMemo(
     () => ({ ...filters, sort: sort.column, order: sort.order, page, pageSize: PAGE_SIZE }),
@@ -137,6 +140,42 @@ export default function InventoryReport() {
     setPage(1);
   }
 
+  function clearFilters() {
+    setFilters(NO_FILTERS);
+    setPage(1);
+  }
+
+  // Download CSV: all items for the current filters and sort order, not only this page.
+  async function downloadCsv() {
+    setDownloading(true);
+    setDownloadError('');
+    try {
+      await downloadInventoryCsv(params);
+    } catch (error) {
+      setDownloadError(error.message);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  const filtersChosen = Object.values(filters).some(Boolean);
+
+  // M9 empty report. The design text mentions a date range, which this tab does not have,
+  // so the second line is reworded (03 › wording rule; needs team agreement).
+  const emptyState = (
+    <div className="py-6">
+      <p className="text-base font-semibold text-ink">No items match these filters.</p>
+      {filtersChosen && (
+        <>
+          <p className="mt-1 text-sm text-muted">Clear the filters to see more items.</p>
+          <Button variant="secondary" className="mt-4" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        </>
+      )}
+    </div>
+  );
+
   const filterFields = [
     { name: 'campus', label: 'Campus', options: toOptions(campuses) },
     { name: 'building', label: 'Building', options: toOptions(buildings) },
@@ -153,7 +192,13 @@ export default function InventoryReport() {
 
   return (
     <>
-      <ReportsHeader />
+      <ReportsHeader
+        action={
+          <Button disabled={loading || downloading || result.total === 0} onClick={downloadCsv}>
+            {downloading ? 'Downloading…' : 'Download CSV'}
+          </Button>
+        }
+      />
 
       <div className="mt-4 grid grid-cols-5 gap-4">
         {filterFields.map((field) => (
@@ -169,9 +214,9 @@ export default function InventoryReport() {
         ))}
       </div>
 
-      {result.error && (
+      {(result.error || downloadError) && (
         <p role="alert" className="mt-4 rounded-card bg-warn-bg p-4 text-sm text-warn">
-          ! {result.error}
+          ! {result.error || downloadError}
         </p>
       )}
 
@@ -181,7 +226,7 @@ export default function InventoryReport() {
           rowKey="code"
           columns={tableColumns}
           rows={result.data}
-          emptyText={loading ? 'Loading…' : 'No items match these filters.'}
+          emptyText={loading ? 'Loading…' : emptyState}
           footer={
             <Pagination
               page={page}

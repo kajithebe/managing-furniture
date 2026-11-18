@@ -4,6 +4,7 @@ export default function Table({
   rowKey = 'id',
   caption,
   emptyText = 'Nothing to show.',
+  footer,
   className = '',
 }) {
   const wrapperClasses = ['overflow-x-auto rounded-card border border-line bg-surface', className]
@@ -47,6 +48,7 @@ export default function Table({
           )}
         </tbody>
       </table>
+      {footer && <div className="border-t border-line">{footer}</div>}
     </div>
   );
 }

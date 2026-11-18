@@ -3,6 +3,7 @@ import { getWaitingRequests } from '../../api/moderator.js';
 import LoadError from '../../components/ui/LoadError.jsx';
 import Toast from '../../components/ui/Toast.jsx';
 import RequestCard from './RequestCard.jsx';
+import { notifyRequestsChanged } from './useWaitingCount.js';
 
 // M2 Waiting tab. Oldest request first (sorted by the API).
 export default function WaitingList() {
@@ -35,6 +36,8 @@ export default function WaitingList() {
   function handleDecided(item, decision) {
     setToast(`${item.name} ${item.code} ${decision}`);
     setAttempt((value) => value + 1);
+    // The side menu count ("Requests 3") loads again too.
+    notifyRequestsChanged();
   }
 
   let content;

@@ -188,3 +188,43 @@ export async function listMyLoans(userId) {
   const views = await loanViews([...open, ...recent]);
   return { open: views.slice(0, open.length), recent: views.slice(open.length) };
 }
+
+// Who may see the borrower's name on an item (01: borrower details only for moderators and admins).
+const STAFF_ROLES = ['MODERATOR', 'ADMIN'];
+
+// The open loan of one item, for GET /api/items/:code: S3 / S5 "On loan until 14:00 · in D751"
+// and the M7 "Current loan" card. Students get no borrower name.
+export async function currentLoanOf(itemId, viewer) {
+  const loanItem = await prisma.loanItem.findFirst({
+    where: { itemId, status: { in: ['APPROVED', 'OVERDUE'] } },
+    orderBy: { id: 'desc' },
+    select: {
+      id: true,
+      status: true,
+      loan: {
+        select: {
+          id: true,
+          dueAt: true,
+          toRoomId: true,
+          user: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+  if (!loanItem) {
+    return null;
+  }
+
+  const rooms = await roomsById([loanItem.loan.toRoomId]);
+  const currentLoan = {
+    loanId: loanItem.loan.id,
+    loanItemId: loanItem.id,
+    status: loanItem.status,
+    dueAt: loanItem.loan.dueAt,
+    toRoom: rooms.get(loanItem.loan.toRoomId) ?? null,
+  };
+  if (STAFF_ROLES.includes(viewer.role)) {
+    currentLoan.borrower = loanItem.loan.user;
+  }
+  return currentLoan;
+}

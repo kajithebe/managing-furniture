@@ -3,18 +3,36 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { decideLoanItem, listWaitingRequests } from '../services/approvalService.js';
+import {
+  decideLoanItem,
+  getLoanDetail,
+  listDecidedToday,
+  listWaitingRequests,
+} from '../services/approvalService.js';
 
 export const moderatorRouter = Router();
 
 moderatorRouter.use(requireAuth, requireRole('MODERATOR'));
 
-// GET /api/moderator/requests – M2 Waiting tab.
-moderatorRouter.get('/requests', async (req, res) => {
-  res.json(await listWaitingRequests());
+// M2 has two tabs: Waiting (default) and Decided today (with paging).
+const requestsQuery = z.object({
+  tab: z.enum(['waiting', 'decided']).default('waiting'),
+  page: z.coerce.number().int().min(1).default(1),
 });
 
-const loanItemParams = z.object({ id: z.coerce.number().int().positive() });
+// GET /api/moderator/requests?tab=waiting|decided&page= – M2.
+moderatorRouter.get('/requests', async (req, res) => {
+  const { tab, page } = requestsQuery.parse(req.query);
+  res.json(tab === 'decided' ? await listDecidedToday({ page }) : await listWaitingRequests());
+});
+
+const idParams = z.object({ id: z.coerce.number().int().positive() });
+
+// GET /api/moderator/loans/:id – M3 Loan detail.
+moderatorRouter.get('/loans/:id', async (req, res) => {
+  const { id } = idParams.parse(req.params);
+  res.json(await getLoanDetail(id));
+});
 
 // P10: "Note to the borrower" is optional. An empty note is saved as no note.
 const decisionBody = z.object({
@@ -32,7 +50,7 @@ for (const [action, approve] of [
   ['decline', false],
 ]) {
   moderatorRouter.post(`/loan-items/:id/${action}`, async (req, res) => {
-    const { id } = loanItemParams.parse(req.params);
+    const { id } = idParams.parse(req.params);
     const { note } = decisionBody.parse(req.body ?? {});
     res.json(await decideLoanItem(id, req.user, { approve, note }));
   });

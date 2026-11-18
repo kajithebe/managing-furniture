@@ -11,6 +11,7 @@ import { apiRateLimit } from './middleware/rateLimit.js';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 import { itemsRouter } from './routes/items.js';
+import { labelsRouter } from './routes/labels.js';
 import { loansRouter } from './routes/loans.js';
 import { lookupEntriesRouter, lookupsRouter } from './routes/lookups.js';
 import { moderatorRouter } from './routes/moderator.js';
@@ -60,6 +61,7 @@ export function createApp({ clientDist = DEFAULT_CLIENT_DIST } = {}) {
   app.use('/api/health', healthRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/items', itemsRouter);
+  app.use('/api/labels', labelsRouter);
   app.use('/api/loans', loansRouter);
   app.use('/api/lookups', lookupsRouter);
   app.use('/api/moderator', moderatorRouter);

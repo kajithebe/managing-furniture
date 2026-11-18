@@ -322,3 +322,85 @@ async function sendDecisionEmail(loanItem, moderator, { approve, note }) {
     console.error(`Decision email for loan item ${loanItem.id} could not be sent: ${err.message}`);
   }
 }
+
+// --- M3 Loan detail ---
+
+// GET /api/moderator/loans/:id: one whole loan for moderators. The borrower's email is shown
+// here (M3), because only moderators and admins can open this page (01 › Roles).
+export async function getLoanDetail(loanId) {
+  const loan = await prisma.loan.findUnique({
+    where: { id: loanId },
+    select: {
+      id: true,
+      status: true,
+      reason: true,
+      createdAt: true,
+      dueAt: true,
+      closedAt: true,
+      toRoomId: true,
+      user: { select: { id: true, name: true, email: true } },
+      items: {
+        orderBy: { id: 'asc' },
+        select: {
+          id: true,
+          status: true,
+          fromRoomId: true,
+          decidedById: true,
+          decidedAt: true,
+          decisionNote: true,
+          returnedAt: true,
+          returnedById: true,
+          returnMethod: true,
+          item: {
+            select: {
+              code: true,
+              name: true,
+              category: { select: { name: true } },
+              homeRoom: { select: { id: true, name: true } },
+              currentRoom: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!loan) {
+    throw notFound();
+  }
+
+  const [rooms, people] = await Promise.all([
+    roomsById([loan.toRoomId, ...loan.items.map((item) => item.fromRoomId)]),
+    usersById(loan.items.flatMap((item) => [item.decidedById, item.returnedById])),
+  ]);
+
+  return {
+    id: loan.id,
+    status: loan.status,
+    reason: loan.reason,
+    createdAt: loan.createdAt,
+    dueAt: loan.dueAt,
+    closedAt: loan.closedAt,
+    borrower: loan.user,
+    toRoom: rooms.get(loan.toRoomId) ?? null,
+    items: loan.items.map((loanItem) => ({
+      id: loanItem.id,
+      status: loanItem.status,
+      code: loanItem.item.code,
+      name: loanItem.item.name,
+      category: loanItem.item.category.name,
+      homeRoom: loanItem.item.homeRoom,
+      currentRoom: loanItem.item.currentRoom,
+      fromRoom: rooms.get(loanItem.fromRoomId) ?? null,
+      // "Decided by": a moderator, "Auto-approved" (approved by its category), or "—" (waiting).
+      autoApproved:
+        loanItem.decidedById === null && !['PENDING', 'DECLINED'].includes(loanItem.status),
+      decidedBy: people.get(loanItem.decidedById) ?? null,
+      decidedAt: loanItem.decidedAt,
+      note: loanItem.decisionNote,
+      // "Returned at / method": "9 Nov, 13:55 · scanned" or "… · marked by Mikko Laine".
+      returnedAt: loanItem.returnedAt,
+      returnMethod: loanItem.returnMethod,
+      returnedBy: people.get(loanItem.returnedById) ?? null,
+    })),
+  };
+}

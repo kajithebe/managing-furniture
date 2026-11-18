@@ -4,3 +4,8 @@ import { api } from './client.js';
 export function getWaitingRequests(options) {
   return api.get('/moderator/requests?tab=waiting', options);
 }
+
+// Approve one waiting item (a LoanItem id from request.waiting[].id).
+export function approveLoanItem(loanItemId) {
+  return api.post(`/moderator/loan-items/${encodeURIComponent(loanItemId)}/approve`, {});
+}

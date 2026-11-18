@@ -1,7 +1,13 @@
+import { useState } from 'react';
+import { approveLoanItem } from '../../api/moderator.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Table from '../../components/ui/Table.jsx';
 import { formatClock, formatWaitingFor } from './format.js';
+
+const linkButton =
+  'font-semibold text-brand disabled:cursor-not-allowed disabled:text-muted ' +
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
 function ItemLabel({ item }) {
   return (
@@ -11,12 +17,30 @@ function ItemLabel({ item }) {
   );
 }
 
-// One request on M2 Waiting: title line, table of the items still waiting,
+// One request on M2 Waiting: title line, table of the items still waiting (with actions),
 // and the items already approved in the same request (shown as info).
-export default function RequestCard({ request }) {
+export default function RequestCard({ request, onApproved }) {
+  // LoanItem id that is being sent; blocks a second click while the call runs.
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState('');
+
   const until = formatClock(request.dueAt);
   const titleId = `request-${request.id}-title`;
   const route = (item) => `${item.fromRoom?.name ?? '—'} → ${request.toRoom.name}`;
+
+  async function approve(item) {
+    setBusyId(item.id);
+    setError('');
+    try {
+      await approveLoanItem(item.id);
+      onApproved(item);
+    } catch (err) {
+      // e.g. ALREADY_DECIDED or ITEM_NOT_AVAILABLE: show the API's message as it is (02).
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const title = [
     request.borrower.name,
@@ -36,6 +60,21 @@ export default function RequestCard({ request }) {
     },
     { key: 'until', header: 'Until', render: () => until },
     { key: 'waitingFor', header: 'Waiting for', render: () => formatWaitingFor(request.createdAt) },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item) => (
+        <button
+          type="button"
+          className={linkButton}
+          disabled={busyId !== null}
+          aria-label={`Approve ${item.name} ${item.code}`}
+          onClick={() => approve(item)}
+        >
+          Approve
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -49,6 +88,11 @@ export default function RequestCard({ request }) {
         rows={request.waiting}
         caption={`Items waiting for approval, requested by ${request.borrower.name}`}
       />
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-danger">
+          ! {error}
+        </p>
+      )}
 
       {request.approved.length > 0 && (
         <section aria-labelledby={`${titleId}-approved`} className="mt-4">

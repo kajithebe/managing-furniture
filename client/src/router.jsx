@@ -10,6 +10,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
+import RequestsPage from './pages/RequestsPage.jsx';
 
 // Routes from 02-architecture-and-data-model.md › Frontend routes.
 // Each card replaces its placeholder with the real page.
@@ -53,7 +54,7 @@ export const router = createBrowserRouter([
         element: <DesktopLayout />,
         children: [
           { path: '/mod', element: placeholder('Dashboard') },
-          { path: '/mod/requests', element: placeholder('Requests') },
+          { path: '/mod/requests', element: <RequestsPage /> },
           { path: '/mod/overdue', element: placeholder('Not yet returned') },
           { path: '/mod/items', element: placeholder('Items') },
           { path: '/mod/items/new', element: placeholder('Add item') },

@@ -8,13 +8,14 @@ import LoginNotice from '../features/auth/LoginNotice.jsx';
 import { homePathFor, safeReturnTo, scannedItemCode } from '../features/auth/returnTo.js';
 import { useAuth } from '../hooks/useAuth.js';
 
-// Quick check for a better message before sending. The server (ALLOWED_EMAIL_DOMAIN) is the
-// real check; if it refuses, its message is shown in the same place.
+// The browser only checks that it looks like an email. The allowed domain is checked on the
+// server (ALLOWED_EMAIL_DOMAIN, e.g. gmail.com on the demo server): it answers
+// EMAIL_DOMAIN_NOT_ALLOWED, which is shown under the field.
 const EMAIL_DOMAIN = '@metropolia.fi';
 const DOMAIN_ERROR = `Use your ${EMAIL_DOMAIN} address`;
 
-function looksAllowed(email) {
-  return /^[^\s@]+@[^\s@]+$/.test(email) && email.endsWith(EMAIL_DOMAIN);
+function looksLikeEmail(email) {
+  return /^[^\s@]+@[^\s@]+$/.test(email);
 }
 
 export default function LoginPage() {
@@ -45,7 +46,7 @@ export default function LoginPage() {
     event.preventDefault();
     const normalized = email.trim().toLowerCase();
 
-    if (!looksAllowed(normalized)) {
+    if (!looksLikeEmail(normalized)) {
       setEmailError(DOMAIN_ERROR);
       return;
     }

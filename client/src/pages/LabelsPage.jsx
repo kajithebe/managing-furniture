@@ -9,6 +9,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { getItemLabels, getRoomLabels } from '../api/labels.js';
 import Button from '../components/ui/Button.jsx';
 import Card from '../components/ui/Card.jsx';
+import LabelSheets from '../features/labels/LabelSheets.jsx';
 
 // Labels per sheet: the design shows 24 (item labels) and 12 (room labels).
 // The second option of each list needs team agreement.
@@ -179,8 +180,8 @@ export default function LabelsPage() {
 
       <div className="mt-6 grid grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start gap-6">
         <Card>
-          <p className="text-xs text-muted">A4 · 210 × 297 mm</p>
-          {/* Sheet preview: next step (MF-09 step 4). */}
+          <p className="mb-3 text-xs text-muted">A4 · 210 × 297 mm</p>
+          <LabelSheets type={type} labels={labels} perSheet={perSheet[type]} />
         </Card>
 
         <Card>

@@ -170,21 +170,22 @@ export default function LabelsPage() {
 
   return (
     <div>
-      <nav aria-label="Breadcrumb" className="text-[13px] text-brand">
+      <nav aria-label="Breadcrumb" className="text-[13px] text-brand print:hidden">
         <Link to="/mod/items" className={focusRing}>
           Items
         </Link>{' '}
         / Print labels
       </nav>
-      <h1 className="mt-4 text-[28px] font-semibold text-ink">Print labels</h1>
+      <h1 className="mt-4 text-[28px] font-semibold text-ink print:hidden">Print labels</h1>
 
-      <div className="mt-6 grid grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start gap-6">
-        <Card>
-          <p className="mb-3 text-xs text-muted">A4 · 210 × 297 mm</p>
+      <div className="mt-6 grid grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start gap-6 print:m-0 print:block">
+        {/* When printing, only this card's sheets are shown, without the card around them. */}
+        <Card className="print:rounded-none print:border-0 print:p-0">
+          <p className="mb-3 text-xs text-muted print:hidden">A4 · 210 × 297 mm</p>
           <LabelSheets type={type} labels={labels} perSheet={perSheet[type]} />
         </Card>
 
-        <Card>
+        <Card className="print:hidden">
           <h2 className="text-base font-semibold text-ink">Options</h2>
 
           <p className="mt-4 text-sm font-semibold text-ink">Label type</p>

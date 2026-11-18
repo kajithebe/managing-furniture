@@ -6,7 +6,8 @@ const MODERATOR_ITEMS = [
   { label: 'Dashboard', to: '/mod', exact: true },
   { label: 'Requests', to: '/mod/requests', countKey: 'waiting' },
   { label: 'Not yet returned', to: '/mod/overdue', countKey: 'notYetReturned' },
-  { label: 'Items', to: '/mod/items', match: '/mod/items' },
+  // M8 Print labels belongs to Items ("Items / Print labels").
+  { label: 'Items', to: '/mod/items', match: ['/mod/items', '/mod/labels'] },
   { label: 'Reports', to: '/mod/reports/inventory', match: '/mod/reports' },
 ];
 
@@ -22,8 +23,8 @@ const focusRing =
 
 function isActive(item, pathname) {
   if (item.exact) return pathname === item.to;
-  const prefix = item.match ?? item.to;
-  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  const prefixes = [].concat(item.match ?? item.to);
+  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 function MenuLink({ item, pathname, count }) {
@@ -62,8 +63,8 @@ export default function DesktopLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-page">
-      <aside className="sticky top-0 flex h-screen w-48 shrink-0 flex-col border-r border-line bg-surface px-4 py-6">
+    <div className="flex min-h-screen bg-page print:block print:bg-surface">
+      <aside className="sticky top-0 flex h-screen w-48 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 print:hidden">
         <div className="px-3">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-brand">
             Metropolia
@@ -102,7 +103,7 @@ export default function DesktopLayout() {
         )}
       </aside>
 
-      <main className="min-w-0 flex-1 p-8">
+      <main className="min-w-0 flex-1 p-8 print:p-0">
         <Outlet />
       </main>
     </div>

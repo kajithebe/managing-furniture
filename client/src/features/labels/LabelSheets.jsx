@@ -1,5 +1,5 @@
-// A4 label sheets for M8 "Print labels". The same sheets are the preview on screen and,
-// in the next step, what gets printed.
+// A4 label sheets for M8 "Print labels". The same sheets are the preview on screen and what
+// gets printed: on paper each sheet is exactly 210 × 297 mm, one sheet per page.
 // Every size inside a sheet is in cqw (1 % of the sheet's width), so a sheet looks the same
 // small in the preview card and at 210 mm on paper.
 
@@ -74,7 +74,7 @@ function Sheet({ type, labels, layout }) {
   return (
     // The sheet is the size container for the cqw units inside it.
     <div
-      className="label-sheet aspect-[210/297] w-full border border-line bg-surface"
+      className="aspect-[210/297] w-full border border-line bg-surface print:h-[297mm] print:w-[210mm] print:break-inside-avoid print:border-0 print:[&:not(:last-child)]:break-after-page"
       style={{ containerType: 'inline-size' }}
     >
       <div
@@ -98,7 +98,7 @@ export default function LabelSheets({ type, labels, perSheet }) {
   const sheets = labels.length > 0 ? toSheets(labels, perSheet) : [[]];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 print:block">
       {sheets.map((sheetLabels, index) => (
         <Sheet key={index} type={type} labels={sheetLabels} layout={layout} />
       ))}

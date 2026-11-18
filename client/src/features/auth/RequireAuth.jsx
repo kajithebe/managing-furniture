@@ -23,7 +23,7 @@ export default function RequireAuth({ roles, deniedLayout: DeniedLayout }) {
   }
 
   if (roles && !roles.includes(user.role)) {
-    const denied = <AccessDenied roles={roles} />;
+    const denied = <AccessDenied />;
     return DeniedLayout ? <DeniedLayout>{denied}</DeniedLayout> : denied;
   }
 

@@ -113,7 +113,7 @@ itemsRouter.get('/next-code', moderator, async (req, res) => {
 // Every logged-in user: this is the page a QR scan opens.
 itemsRouter.get('/:code', requireAuth, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
-  res.json(await getItem(code));
+  res.json(await getItem(code, req.user));
 });
 
 itemsRouter.post('/', moderator, async (req, res) => {

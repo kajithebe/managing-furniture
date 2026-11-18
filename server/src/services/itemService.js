@@ -4,6 +4,7 @@
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/error.js';
 import { reserveCodes } from './codeService.js';
+import { currentLoanOf } from './loanService.js';
 
 // The item fields returned by the API.
 const itemFields = {
@@ -87,8 +88,8 @@ function itemNotFound(code) {
   );
 }
 
-// GET /api/items/:code
-export async function getItem(code) {
+// GET /api/items/:code. viewer: the logged-in user (decides whether the borrower is shown).
+export async function getItem(code, viewer) {
   const item = await prisma.item.findUnique({ where: { code }, select: itemDetailFields });
   if (!item) {
     throw itemNotFound(code);
@@ -103,7 +104,10 @@ export async function getItem(code) {
       })
     : null;
 
-  return { ...withStatus(item), createdBy };
+  // S3 / M7: the open loan of an item that is on loan (MF-10).
+  const currentLoan = item.onLoan ? await currentLoanOf(item.id, viewer) : null;
+
+  return { ...withStatus(item), createdBy, currentLoan };
 }
 
 // sortable columns → database order. The code is always added last, so rows with the

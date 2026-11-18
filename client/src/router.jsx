@@ -4,6 +4,7 @@ import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
+import ReportsPage from './pages/ReportsPage.jsx';
 
 // Routes from 02-architecture-and-data-model.md › Frontend routes.
 // Each card replaces its placeholder with the real page.
@@ -38,7 +39,7 @@ export const router = createBrowserRouter([
       { path: '/mod/items/new', element: placeholder('Add item') },
       { path: '/mod/items/:code', element: placeholder('Item') },
       { path: '/mod/labels', element: <LabelsPage /> },
-      { path: '/mod/reports/:report', element: placeholder('Reports') },
+      { path: '/mod/reports/:report', element: <ReportsPage /> },
       { path: '/admin/settings/:tab', element: placeholder('Settings') },
       { path: '/admin/users', element: placeholder('Users') },
     ],

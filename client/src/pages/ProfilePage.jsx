@@ -13,19 +13,18 @@ export default function ProfilePage() {
 
   const [name, setName] = useState(user?.name ?? '');
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // RequireAuth only shows this page to logged-in users; this covers the moment of logging out.
   if (!user) return null;
 
   const trimmed = name.trim();
+  // Save is enabled only when there is a new, non-empty name (disabled again after saving).
   const canSave = trimmed !== '' && trimmed !== (user.name ?? '') && !saving;
 
   function handleChange(event) {
     setName(event.target.value);
     setError('');
-    setSaved(false);
   }
 
   async function handleSave(event) {
@@ -36,7 +35,6 @@ export default function ProfilePage() {
     try {
       const me = await updateName(trimmed);
       setName(me.name ?? '');
-      setSaved(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -75,12 +73,6 @@ export default function ProfilePage() {
             </span>
           </p>
         </div>
-
-        {saved && (
-          <p role="status" className="rounded-card bg-brand-tint px-3 py-2 text-sm text-ink">
-            ✓ Name saved
-          </p>
-        )}
       </form>
 
       <div className="-mx-5 -mb-5 mt-auto flex flex-col gap-3 border-t border-line bg-surface p-5">

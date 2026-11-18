@@ -1,14 +1,21 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import DesktopLayout from './components/layout/DesktopLayout.jsx';
 import PhoneLayout from './components/layout/PhoneLayout.jsx';
+import RequireAuth from './features/auth/RequireAuth.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
+import LoginCodePage from './pages/LoginCodePage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
 
 // Routes from 02-architecture-and-data-model.md › Frontend routes.
 // Each card replaces its placeholder with the real page.
 const placeholder = (title) => <PlaceholderPage title={title} />;
+
+const STAFF = ['MODERATOR', 'ADMIN'];
+const ADMIN_ONLY = ['ADMIN'];
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/loans" replace /> },
@@ -17,31 +24,49 @@ export const router = createBrowserRouter([
   {
     element: <PhoneLayout />,
     children: [
-      { path: '/login', element: placeholder('Log in') },
-      { path: '/login/code', element: placeholder('Enter code') },
-      { path: '/i/:code', element: placeholder('Item') },
-      { path: '/borrow', element: placeholder('Borrow request') },
-      { path: '/loans', element: placeholder('My loans') },
-      { path: '/return/:loanId', element: placeholder('Return items') },
-      { path: '/r/:qrToken', element: placeholder('Room') },
-      { path: '/profile', element: placeholder('Profile') },
+      // Public: the login screens.
+      { path: '/login', element: <LoginPage /> },
+      { path: '/login/code', element: <LoginCodePage /> },
+
+      // Everything else needs a login (any role).
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: '/i/:code', element: placeholder('Item') },
+          { path: '/borrow', element: placeholder('Borrow request') },
+          { path: '/loans', element: placeholder('My loans') },
+          { path: '/return/:loanId', element: placeholder('Return items') },
+          { path: '/r/:qrToken', element: placeholder('Room') },
+          { path: '/profile', element: <ProfilePage /> },
+        ],
+      },
     ],
   },
 
   // Moderator and admin (desktop)
   {
-    element: <DesktopLayout />,
+    element: <RequireAuth roles={STAFF} deniedLayout={PhoneLayout} />,
     children: [
-      { path: '/mod', element: placeholder('Dashboard') },
-      { path: '/mod/requests', element: placeholder('Requests') },
-      { path: '/mod/overdue', element: placeholder('Not yet returned') },
-      { path: '/mod/items', element: placeholder('Items') },
-      { path: '/mod/items/new', element: placeholder('Add item') },
-      { path: '/mod/items/:code', element: placeholder('Item') },
-      { path: '/mod/labels', element: <LabelsPage /> },
-      { path: '/mod/reports/:report', element: <ReportsPage /> },
-      { path: '/admin/settings/:tab', element: placeholder('Settings') },
-      { path: '/admin/users', element: placeholder('Users') },
+      {
+        element: <DesktopLayout />,
+        children: [
+          { path: '/mod', element: placeholder('Dashboard') },
+          { path: '/mod/requests', element: placeholder('Requests') },
+          { path: '/mod/overdue', element: placeholder('Not yet returned') },
+          { path: '/mod/items', element: placeholder('Items') },
+          { path: '/mod/items/new', element: placeholder('Add item') },
+          { path: '/mod/items/:code', element: placeholder('Item') },
+          { path: '/mod/labels', element: <LabelsPage /> },
+          { path: '/mod/reports/:report', element: <ReportsPage /> },
+          {
+            element: <RequireAuth roles={ADMIN_ONLY} />,
+            children: [
+              { path: '/admin/settings/:tab', element: placeholder('Settings') },
+              { path: '/admin/users', element: placeholder('Users') },
+            ],
+          },
+        ],
+      },
     ],
   },
 

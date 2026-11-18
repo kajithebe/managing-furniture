@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { api } from '../../api/client.js';
+import { useAuth } from '../../hooks/useAuth.js';
 
 // Menu from design-screens M1/M2 (moderator) and A2 (admin).
 const MODERATOR_ITEMS = [
@@ -47,19 +47,16 @@ function MenuLink({ item, pathname, count }) {
 export default function DesktopLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
-  // TODO(MF-11): get the logged-in user from useAuth().
-  const user = null;
   // TODO(MF-31): menu counts from GET /api/moderator/dashboard.
   const counts = {};
 
+  // logout() ends the session on the server and clears the user in the whole app
+  // (it treats a failed request as logged out too). Then go to the login page.
   async function handleLogout() {
-    try {
-      await api.post('/auth/logout');
-    } catch {
-      // Ignore: even if the server call fails, the user still leaves to the login page.
-    }
-    navigate('/login');
+    await logout();
+    navigate('/login', { replace: true });
   }
 
   return (

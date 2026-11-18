@@ -1,14 +1,12 @@
-// Fetch wrapper for the API in 02-architecture-and-data-model.md › API contract.
-// Sends the mf_session cookie and turns error replies into an ApiError.
-
 const BASE_PATH = '/api';
 
 export class ApiError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -39,10 +37,12 @@ export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   const data = isJson ? await response.json().catch(() => null) : null;
 
   if (!response.ok) {
+    const { code, message, ...details } = data?.error ?? {};
     throw new ApiError(
       response.status,
-      data?.error?.code ?? 'HTTP_ERROR',
-      data?.error?.message ?? 'Something went wrong. Please try again.',
+      code ?? 'HTTP_ERROR',
+      message ?? 'Something went wrong. Please try again.',
+      details,
     );
   }
 

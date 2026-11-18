@@ -31,9 +31,9 @@ export default function WaitingList() {
     setAttempt((value) => value + 1);
   }
 
-  // After a decision: keep the current list on screen and swap it when the new one arrives.
-  function handleApproved(item) {
-    setToast(`${item.name} ${item.code} approved`);
+  // After approve or decline: keep the current list on screen and swap it when the new one arrives.
+  function handleDecided(item, decision) {
+    setToast(`${item.name} ${item.code} ${decision}`);
     setAttempt((value) => value + 1);
   }
 
@@ -66,7 +66,7 @@ export default function WaitingList() {
     content = (
       <div className="flex flex-col gap-4">
         {state.requests.map((request) => (
-          <RequestCard key={request.id} request={request} onApproved={handleApproved} />
+          <RequestCard key={request.id} request={request} onDecided={handleDecided} />
         ))}
       </div>
     );

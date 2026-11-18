@@ -9,3 +9,11 @@ export function getWaitingRequests(options) {
 export function approveLoanItem(loanItemId) {
   return api.post(`/moderator/loan-items/${encodeURIComponent(loanItemId)}/approve`, {});
 }
+
+// Decline one waiting item; the note (max 500) goes to the borrower in the decision email.
+export function declineLoanItem(loanItemId, note) {
+  return api.post(
+    `/moderator/loan-items/${encodeURIComponent(loanItemId)}/decline`,
+    note ? { note } : {},
+  );
+}

@@ -3,6 +3,7 @@ import { approveLoanItem } from '../../api/moderator.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Table from '../../components/ui/Table.jsx';
+import DeclineDialog from './DeclineDialog.jsx';
 import { formatClock, formatWaitingFor } from './format.js';
 
 const linkButton =
@@ -19,10 +20,12 @@ function ItemLabel({ item }) {
 
 // One request on M2 Waiting: title line, table of the items still waiting (with actions),
 // and the items already approved in the same request (shown as info).
-export default function RequestCard({ request, onApproved }) {
-  // LoanItem id that is being sent; blocks a second click while the call runs.
+export default function RequestCard({ request, onDecided }) {
+  // LoanItem id that is being approved; blocks a second click while the call runs.
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+  // The item whose Decline pop-up (P10) is open, or null.
+  const [declining, setDeclining] = useState(null);
 
   const until = formatClock(request.dueAt);
   const titleId = `request-${request.id}-title`;
@@ -33,13 +36,18 @@ export default function RequestCard({ request, onApproved }) {
     setError('');
     try {
       await approveLoanItem(item.id);
-      onApproved(item);
+      onDecided(item, 'approved');
     } catch (err) {
       // e.g. ALREADY_DECIDED or ITEM_NOT_AVAILABLE: show the API's message as it is (02).
       setError(err.message);
     } finally {
       setBusyId(null);
     }
+  }
+
+  function handleDeclined(item) {
+    setDeclining(null);
+    onDecided(item, 'declined');
   }
 
   const title = [
@@ -64,15 +72,32 @@ export default function RequestCard({ request, onApproved }) {
       key: 'actions',
       header: 'Actions',
       render: (item) => (
-        <button
-          type="button"
-          className={linkButton}
-          disabled={busyId !== null}
-          aria-label={`Approve ${item.name} ${item.code}`}
-          onClick={() => approve(item)}
-        >
-          Approve
-        </button>
+        <span className="whitespace-nowrap">
+          <button
+            type="button"
+            className={linkButton}
+            disabled={busyId !== null}
+            aria-label={`Approve ${item.name} ${item.code}`}
+            onClick={() => approve(item)}
+          >
+            Approve
+          </button>
+          <span aria-hidden="true" className="text-brand">
+            {' / '}
+          </span>
+          <button
+            type="button"
+            className={linkButton}
+            disabled={busyId !== null}
+            aria-label={`Decline ${item.name} ${item.code}`}
+            onClick={() => {
+              setError('');
+              setDeclining(item);
+            }}
+          >
+            Decline
+          </button>
+        </span>
       ),
     },
   ];
@@ -114,6 +139,15 @@ export default function RequestCard({ request, onApproved }) {
             ))}
           </ul>
         </section>
+      )}
+
+      {declining && (
+        <DeclineDialog
+          request={request}
+          item={declining}
+          onClose={() => setDeclining(null)}
+          onDeclined={handleDeclined}
+        />
       )}
     </Card>
   );

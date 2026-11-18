@@ -3,6 +3,7 @@ import { getLookups } from '../../api/lookups.js';
 import { downloadInventoryCsv, getInventoryReport } from '../../api/reports.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Button from '../../components/ui/Button.jsx';
+import LoadError from '../../components/ui/LoadError.jsx';
 import Select from '../../components/ui/Select.jsx';
 import Table from '../../components/ui/Table.jsx';
 import Pagination from './Pagination.jsx';
@@ -67,8 +68,17 @@ export default function InventoryReport() {
   const [filters, setFilters] = useState(NO_FILTERS);
   const [sort, setSort] = useState({ column: 'code', order: 'asc' });
   const [page, setPage] = useState(1);
-  // The last answer from the API, together with the query it belongs to.
-  const [result, setResult] = useState({ params: null, data: [], total: 0, error: '' });
+  // Counts "Try again" clicks; a new value loads the lists again with the same filters.
+  const [attempt, setAttempt] = useState(0);
+  const [lookupsFailed, setLookupsFailed] = useState(false);
+  // The last answer from the API, together with the query and attempt it belongs to.
+  const [result, setResult] = useState({
+    params: null,
+    attempt: 0,
+    data: [],
+    total: 0,
+    failed: false,
+  });
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
 
@@ -76,35 +86,39 @@ export default function InventoryReport() {
     () => ({ ...filters, sort: sort.column, order: sort.order, page, pageSize: PAGE_SIZE }),
     [filters, sort, page],
   );
-  // Loading until the answer for the current filters has arrived.
-  const loading = result.params !== params;
+  // Loading until the answer for the current filters (and the latest "Try again") has arrived.
+  const loading = result.params !== params || result.attempt !== attempt;
+  const loadFailed = !loading && (result.failed || lookupsFailed);
 
-  // Dropdown lists: campuses → buildings → rooms, and categories. Loaded once.
+  // Dropdown lists: campuses → buildings → rooms, and categories. Loaded again on "Try again".
   useEffect(() => {
     const controller = new AbortController();
     getLookups({ signal: controller.signal })
-      .then(setLookups)
+      .then((data) => {
+        setLookups(data);
+        setLookupsFailed(false);
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') {
-          setResult((current) => ({ ...current, error: error.message }));
+          setLookupsFailed(true);
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
 
-  // The table: loaded again whenever a filter, the sort order or the page changes.
-  // An older request is cancelled, so a slow answer can never replace a newer one.
+  // The table: loaded again whenever a filter, the sort order or the page changes, and on
+  // "Try again". An older request is cancelled, so a slow answer never replaces a newer one.
   useEffect(() => {
     const controller = new AbortController();
     getInventoryReport(params, { signal: controller.signal })
-      .then(({ data, total }) => setResult({ params, data, total, error: '' }))
+      .then(({ data, total }) => setResult({ params, attempt, data, total, failed: false }))
       .catch((error) => {
         if (error.name !== 'AbortError') {
-          setResult({ params, data: [], total: 0, error: error.message });
+          setResult({ params, attempt, data: [], total: 0, failed: true });
         }
       });
     return () => controller.abort();
-  }, [params]);
+  }, [params, attempt]);
 
   // Building and room lists follow the chosen campus and building; "All" shows every one.
   const campuses = lookups?.campuses ?? [];
@@ -194,7 +208,10 @@ export default function InventoryReport() {
     <>
       <ReportsHeader
         action={
-          <Button disabled={loading || downloading || result.total === 0} onClick={downloadCsv}>
+          <Button
+            disabled={loading || downloading || loadFailed || result.total === 0}
+            onClick={downloadCsv}
+          >
             {downloading ? 'Downloading…' : 'Download CSV'}
           </Button>
         }
@@ -214,29 +231,33 @@ export default function InventoryReport() {
         ))}
       </div>
 
-      {(result.error || downloadError) && (
+      {downloadError && (
         <p role="alert" className="mt-4 rounded-card bg-warn-bg p-4 text-sm text-warn">
-          ! {result.error || downloadError}
+          ! {downloadError}
         </p>
       )}
 
-      <div aria-busy={loading} className={`mt-4 ${loading ? 'opacity-60' : ''}`}>
-        <Table
-          caption="Inventory"
-          rowKey="code"
-          columns={tableColumns}
-          rows={result.data}
-          emptyText={loading ? 'Loading…' : emptyState}
-          footer={
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={result.total}
-              onPageChange={setPage}
-            />
-          }
-        />
-      </div>
+      {loadFailed ? (
+        <LoadError className="mt-4" onRetry={() => setAttempt((current) => current + 1)} />
+      ) : (
+        <div aria-busy={loading} className={`mt-4 ${loading ? 'opacity-60' : ''}`}>
+          <Table
+            caption="Inventory"
+            rowKey="code"
+            columns={tableColumns}
+            rows={result.data}
+            emptyText={loading ? 'Loading…' : emptyState}
+            footer={
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={result.total}
+                onPageChange={setPage}
+              />
+            }
+          />
+        </div>
+      )}
     </>
   );
 }

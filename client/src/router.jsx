@@ -5,6 +5,7 @@ import RequireAuth from './features/auth/RequireAuth.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import LoginCodePage from './pages/LoginCodePage.jsx';
 
 const placeholder = (title) => <PlaceholderPage title={title} />;
 
@@ -20,7 +21,7 @@ export const router = createBrowserRouter([
     children: [
       // Public: the login screens.
       { path: '/login', element: <LoginPage /> },
-      { path: '/login/code', element: placeholder('Enter code') },
+      { path: '/login/code', element: <LoginCodePage /> },
 
       // Everything else needs a login (any role).
       {

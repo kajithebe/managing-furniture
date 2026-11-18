@@ -2,12 +2,15 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import DesktopLayout from './components/layout/DesktopLayout.jsx';
 import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
+import LabelsPage from './pages/LabelsPage.jsx';
+import LoginCodePage from './pages/LoginCodePage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import LoginCodePage from './pages/LoginCodePage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 
+// Routes from 02-architecture-and-data-model.md › Frontend routes.
+// Each card replaces its placeholder with the real page.
 const placeholder = (title) => <PlaceholderPage title={title} />;
 
 const STAFF = ['MODERATOR', 'ADMIN'];
@@ -40,7 +43,6 @@ export const router = createBrowserRouter([
   },
 
   // Moderator and admin (desktop)
-  // Moderator and admin (desktop)
   {
     element: <RequireAuth roles={STAFF} deniedLayout={PhoneLayout} />,
     children: [
@@ -53,7 +55,7 @@ export const router = createBrowserRouter([
           { path: '/mod/items', element: placeholder('Items') },
           { path: '/mod/items/new', element: placeholder('Add item') },
           { path: '/mod/items/:code', element: placeholder('Item') },
-          { path: '/mod/labels', element: placeholder('Labels') },
+          { path: '/mod/labels', element: <LabelsPage /> },
           { path: '/mod/reports/:report', element: placeholder('Reports') },
           {
             element: <RequireAuth roles={ADMIN_ONLY} />,

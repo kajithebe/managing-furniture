@@ -1,5 +1,6 @@
 // Moderator approvals (MF-10, M2 Requests). Items whose category needs a moderator wait as
 // PENDING; a moderator approves or declines each item on its own (01 › Core rules).
+import { env } from '../config/env.js';
 import { prisma } from '../db.js';
 import { requestDecidedMail } from '../mail/requestDecided.js';
 import { AppError } from '../middleware/error.js';
@@ -68,6 +69,95 @@ export async function listWaitingRequests() {
     // The "Requests" count in the side menu: waiting items, not requests.
     waitingItems: data.reduce((sum, request) => sum + request.waiting.length, 0),
   };
+}
+
+// --- M2 "Decided today" tab ---
+
+// Rows per page, as on the other moderator tables (M5).
+export const DECIDED_PAGE_SIZE = 25;
+
+// Midnight today in the app's time zone (TZ, Europe/Helsinki), as a Date. The server may run
+// in UTC (Render), so "today" is worked out in that zone, not in the server's own.
+export function startOfToday(timeZone = env.TZ, now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(now)
+      .map(({ type, value }) => [type, Number(value)]),
+  );
+  // How far the zone is ahead of UTC right now, e.g. +2 h in Helsinki in winter.
+  const offset =
+    Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) -
+    Math.floor(now.getTime() / 1000) * 1000;
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day) - offset);
+}
+
+// GET /api/moderator/requests?tab=decided (M2 "Decided today"): items a moderator approved or
+// declined since midnight, newest first. Auto-approved items are not decisions, so they are not
+// listed (they have no decidedById).
+export async function listDecidedToday({ page }) {
+  const where = { decidedById: { not: null }, decidedAt: { gte: startOfToday() } };
+  const [rows, total] = await Promise.all([
+    prisma.loanItem.findMany({
+      where,
+      orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * DECIDED_PAGE_SIZE,
+      take: DECIDED_PAGE_SIZE,
+      select: {
+        id: true,
+        status: true,
+        decidedAt: true,
+        decidedById: true,
+        decisionNote: true,
+        item: { select: { code: true, name: true, category: { select: { name: true } } } },
+        loan: { select: { id: true, toRoomId: true, user: { select: { id: true, name: true } } } },
+      },
+    }),
+    prisma.loanItem.count({ where }),
+  ]);
+
+  // decidedById has no relation in the schema, so the moderators' names are read in one query.
+  const [rooms, moderators] = await Promise.all([
+    roomsById(rows.map((row) => row.loan.toRoomId)),
+    usersById(rows.map((row) => row.decidedById)),
+  ]);
+
+  return {
+    data: rows.map((row) => ({
+      id: row.id,
+      code: row.item.code,
+      name: row.item.name,
+      category: row.item.category.name,
+      // The status the item had right after the decision. A returned item was approved.
+      decision: row.status === 'DECLINED' ? 'DECLINED' : 'APPROVED',
+      note: row.decisionNote,
+      decidedAt: row.decidedAt,
+      decidedBy: moderators.get(row.decidedById) ?? null,
+      loan: {
+        id: row.loan.id,
+        borrower: row.loan.user,
+        toRoom: rooms.get(row.loan.toRoomId) ?? null,
+      },
+    })),
+    total,
+  };
+}
+
+// Names of users by id (moderators who decided, people who marked items returned).
+export async function usersById(ids) {
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...new Set(ids.filter(Boolean))] } },
+    select: { id: true, name: true },
+  });
+  return new Map(users.map((user) => [user.id, user]));
 }
 
 // --- Approve and decline (M2 actions, P10 Decline pop-up, email 2) ---

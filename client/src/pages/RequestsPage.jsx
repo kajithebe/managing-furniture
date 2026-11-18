@@ -39,7 +39,10 @@ export default function RequestsPage() {
       </nav>
 
       {/* Step 2 adds the Waiting list, step 6 the Decided today table. */}
-      <section aria-label={activeTab === 'decided' ? 'Decided today' : 'Waiting'} className="mt-6" />
+      <section
+        aria-label={activeTab === 'decided' ? 'Decided today' : 'Waiting'}
+        className="mt-6"
+      />
     </div>
   );
 }

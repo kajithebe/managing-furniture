@@ -40,8 +40,9 @@ export const router = createBrowserRouter([
   },
 
   // Moderator and admin (desktop)
+  // Moderator and admin (desktop)
   {
-    element: <RequireAuth roles={STAFF} />,
+    element: <RequireAuth roles={STAFF} deniedLayout={PhoneLayout} />,
     children: [
       {
         element: <DesktopLayout />,

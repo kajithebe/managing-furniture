@@ -1,8 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.js';
-import { homePathFor, loginPathFor } from './returnTo.js';
+import AccessDenied from './AccessDenied.jsx';
+import { loginPathFor } from './returnTo.js';
 
-export default function RequireAuth({ roles }) {
+// deniedLayout: the layout to show "no access" in when this guard sits outside a layout
+// (e.g. the moderator pages: a student sees the message in the phone layout).
+export default function RequireAuth({ roles, deniedLayout: DeniedLayout }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -20,7 +23,8 @@ export default function RequireAuth({ roles }) {
   }
 
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to={homePathFor(user)} replace />;
+    const denied = <AccessDenied roles={roles} />;
+    return DeniedLayout ? <DeniedLayout>{denied}</DeniedLayout> : denied;
   }
 
   return <Outlet />;

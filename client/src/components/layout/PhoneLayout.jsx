@@ -87,7 +87,8 @@ function AccountMenu({ user }) {
   );
 }
 
-export default function PhoneLayout() {
+// children: content to show instead of the routed page (used by RequireAuth for "no access").
+export default function PhoneLayout({ children }) {
   const { user } = useAuth();
 
   return (
@@ -96,9 +97,7 @@ export default function PhoneLayout() {
         <span className="text-[17px] font-semibold text-ink">Metropolia Furniture</span>
         {user && <AccountMenu user={user} />}
       </header>
-      <main className="flex flex-1 flex-col p-5">
-        <Outlet />
-      </main>
+      <main className="flex flex-1 flex-col p-5">{children ?? <Outlet />}</main>
     </div>
   );
 }

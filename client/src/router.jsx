@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import DesktopLayout from './components/layout/DesktopLayout.jsx';
 import PhoneLayout from './components/layout/PhoneLayout.jsx';
+import LabelsPage from './pages/LabelsPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 
@@ -36,7 +37,7 @@ export const router = createBrowserRouter([
       { path: '/mod/items', element: placeholder('Items') },
       { path: '/mod/items/new', element: placeholder('Add item') },
       { path: '/mod/items/:code', element: placeholder('Item') },
-      { path: '/mod/labels', element: placeholder('Labels') },
+      { path: '/mod/labels', element: <LabelsPage /> },
       { path: '/mod/reports/:report', element: placeholder('Reports') },
       { path: '/admin/settings/:tab', element: placeholder('Settings') },
       { path: '/admin/users', element: placeholder('Users') },

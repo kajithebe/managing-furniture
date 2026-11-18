@@ -1,4 +1,5 @@
 import { NavLink, useSearchParams } from 'react-router-dom';
+import DecidedList from '../features/requests/DecidedList.jsx';
 import WaitingList from '../features/requests/WaitingList.jsx';
 
 // M2 Requests (desktop): Waiting and Decided today tabs.
@@ -42,8 +43,7 @@ export default function RequestsPage() {
       </nav>
 
       <section aria-label={activeTab === 'decided' ? 'Decided today' : 'Waiting'} className="mt-6">
-        {/* Step 6 adds the Decided today table. */}
-        {activeTab === 'waiting' && <WaitingList />}
+        {activeTab === 'waiting' ? <WaitingList /> : <DecidedList />}
       </section>
     </>
   );

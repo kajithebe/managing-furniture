@@ -3,6 +3,7 @@ import { getMyLoans } from '../api/loans.js';
 import Button from '../components/ui/Button.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import LoanCard from '../features/loans/LoanCard.jsx';
+import RecentLoanCard from '../features/loans/RecentLoanCard.jsx';
 
 // The due lines ("30 min left", "Late since …") are refreshed once a minute.
 const CLOCK_TICK_MS = 60 * 1000;
@@ -24,7 +25,7 @@ function LoadingCards() {
   );
 }
 
-// S7 · My loans: the student's home page. Open loans first, then the last 5 closed (step 5).
+// S7 · My loans: the student's home page. Open loans first, then the last 5 closed.
 export default function MyLoansPage() {
   // Counts "Try again" clicks; a new value loads the loans again.
   const [attempt, setAttempt] = useState(0);
@@ -93,6 +94,24 @@ export default function MyLoansPage() {
           <div className="mt-3 space-y-4">
             {result.open.map((loan) => (
               <LoanCard key={loan.id} loan={loan} now={now} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && !result.failed && result.recent.length > 0 && (
+        <section aria-labelledby="recent-loans" className="mt-6">
+          {result.open.length > 0 && (
+            <a href="#open-loans" className="text-sm text-muted hover:text-ink">
+              ↑ Open loans
+            </a>
+          )}
+          <h2 id="recent-loans" className="mt-2 text-lg font-semibold text-ink">
+            Recent loans
+          </h2>
+          <div className="mt-3 space-y-3">
+            {result.recent.map((loan) => (
+              <RecentLoanCard key={loan.id} loan={loan} />
             ))}
           </div>
         </section>

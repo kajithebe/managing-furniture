@@ -13,6 +13,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
+import RequestSentPage from './pages/RequestSentPage.jsx';
 import RequestsPage from './pages/RequestsPage.jsx';
 
 // Routes from 02-architecture-and-data-model.md › Frontend routes.
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/i/:code', element: <ItemPage /> },
           { path: '/borrow', element: <BorrowPage /> },
+          { path: '/borrow/sent', element: <RequestSentPage /> },
           { path: '/loans', element: <MyLoansPage /> },
           { path: '/return/:loanId', element: placeholder('Return items') },
           { path: '/r/:qrToken', element: placeholder('Room') },

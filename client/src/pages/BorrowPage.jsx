@@ -5,9 +5,11 @@ import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import AddItemView from '../features/borrow/AddItemView.jsx';
 import { clearDraft, removeDraftItem, useBorrowDraft } from '../features/borrow/borrowDraft.js';
+import RequestFields from '../features/borrow/RequestFields.jsx';
+import { DEFAULT_MAX_LOAN_HOURS } from '../features/borrow/untilOptions.js';
 
 // S4 · Borrow request: the items of one request, each tagged auto-approved / needs approval.
-// "+ Add item" opens the S5 scan view. Room, until time, reason and sending follow next.
+// "+ Add item" opens the S5 scan view; below the list: room, until time and reason.
 
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
@@ -61,6 +63,12 @@ export default function BorrowPage() {
   const [scanning, setScanning] = useState(Boolean(location.state?.scan));
   // S5 · Scan succeeded: "✓ Chair MP-00124 added".
   const [added, setAdded] = useState('');
+  const [form, setForm] = useState({ roomId: null, dueAt: '', reason: '' });
+  // Longest loan time setting (see untilOptions.js).
+  const [maxLoanHours] = useState(DEFAULT_MAX_LOAN_HOURS);
+
+  const ready =
+    items.length > 0 && form.roomId !== null && form.dueAt !== '' && form.reason.trim() !== '';
 
   function openScanner() {
     setAdded('');
@@ -119,13 +127,21 @@ export default function BorrowPage() {
             ))}
           </ul>
           <div className="mt-4">{addButton}</div>
+          <RequestFields
+            values={form}
+            onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            maxLoanHours={maxLoanHours}
+          />
         </section>
       )}
 
       <div className="sticky bottom-0 -mx-5 -mb-5 mt-auto flex flex-col gap-3 border-t border-line bg-surface px-5 py-4">
-        {items.length > 0 && <p className="text-[15px] text-ink">{summaryText(items)}</p>}
-        {/* Enabled when room, until time and reason are filled in (next steps). */}
-        <Button fullWidth disabled>
+        {ready && <p className="text-[15px] text-ink">{summaryText(items)}</p>}
+        {!ready && items.length > 0 && (
+          <p className="text-sm text-muted">Scroll to choose a room, time and reason ↓</p>
+        )}
+        {/* Sending is added in the next step of MF-12. */}
+        <Button fullWidth disabled={!ready}>
           Send request
         </Button>
         <button

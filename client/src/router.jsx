@@ -8,6 +8,7 @@ import ItemPage from './pages/ItemPage.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import MyLoansPage from './pages/MyLoansPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
@@ -39,7 +40,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/i/:code', element: <ItemPage /> },
           { path: '/borrow', element: <BorrowPage /> },
-          { path: '/loans', element: placeholder('My loans') },
+          { path: '/loans', element: <MyLoansPage /> },
           { path: '/return/:loanId', element: placeholder('Return items') },
           { path: '/r/:qrToken', element: placeholder('Room') },
           { path: '/profile', element: <ProfilePage /> },

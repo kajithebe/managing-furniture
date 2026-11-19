@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { createLoan } from '../api/loans.js';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
@@ -10,6 +11,7 @@ import { DEFAULT_MAX_LOAN_HOURS } from '../features/borrow/untilOptions.js';
 
 // S4 · Borrow request: the items of one request, each tagged auto-approved / needs approval.
 // "+ Add item" opens the S5 scan view; below the list: room, until time and reason.
+// Send request → POST /api/loans → S6 Request sent (/borrow/sent, MF-13).
 
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
@@ -30,15 +32,34 @@ function summaryText(items) {
   return parts.join(' ');
 }
 
-function DraftItem({ item }) {
+// Shown status (02) → Badge style (03), for items the server refused.
+const BADGES = {
+  ON_LOAN: 'onLoan',
+  NEEDS_REPAIR: 'needsRepair',
+  BROKEN: 'broken',
+  IN_REPAIR: 'inRepair',
+  DISPOSED: 'disposed',
+};
+
+// S4 · Concurrent loan validation: an item the server refused is shown in red with its
+// current status, until the student removes it.
+function DraftItem({ item, refusedStatus }) {
+  const refused = refusedStatus !== undefined;
   return (
-    <li className="flex items-start justify-between gap-3 border-b border-line py-4">
+    <li
+      className={`flex items-start justify-between gap-3 border-b border-line py-4 ${refused ? '-mx-3 rounded-card bg-danger-bg px-3' : ''}`}
+    >
       <div>
         <p className="text-[15px] text-ink">
           <span className="font-semibold">{item.name}</span>{' '}
           <span className="font-mono text-sm">{item.code}</span>
         </p>
-        <Badge status={item.autoApprove ? 'autoApproved' : 'needsApproval'} className="mt-2" />
+        <Badge
+          status={
+            refused ? BADGES[refusedStatus] : item.autoApprove ? 'autoApproved' : 'needsApproval'
+          }
+          className="mt-2"
+        />
         {item.condition === 'NEEDS_REPAIR' && (
           <p className="mt-2 text-sm text-warn">needs repair</p>
         )}
@@ -65,10 +86,70 @@ export default function BorrowPage() {
   const [added, setAdded] = useState('');
   const [form, setForm] = useState({ roomId: null, dueAt: '', reason: '' });
   // Longest loan time setting (see untilOptions.js).
-  const [maxLoanHours] = useState(DEFAULT_MAX_LOAN_HOURS);
+  const [maxLoanHours, setMaxLoanHours] = useState(DEFAULT_MAX_LOAN_HOURS);
+  const [sending, setSending] = useState(false);
+  // The last refused request: { message, items: [{ code, status }] }.
+  const [sendError, setSendError] = useState(null);
 
+  // Refused items still in the request; removing them all enables Send request again.
+  const refused = new Map(
+    (sendError?.items ?? [])
+      .filter((entry) => items.some((item) => item.code === entry.code))
+      .map((entry) => [entry.code, entry.status]),
+  );
+  // The error box goes away once every refused item has been removed.
+  const showError = sendError && !(sendError.items.length > 0 && refused.size === 0);
   const ready =
-    items.length > 0 && form.roomId !== null && form.dueAt !== '' && form.reason.trim() !== '';
+    items.length > 0 &&
+    refused.size === 0 &&
+    form.roomId !== null &&
+    form.dueAt !== '' &&
+    form.reason.trim() !== '';
+
+  function updateForm(patch) {
+    setForm((current) => ({ ...current, ...patch }));
+  }
+
+  async function handleSend() {
+    if (!ready || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const loan = await createLoan({
+        itemCodes: items.map((item) => item.code),
+        toRoomId: form.roomId,
+        dueAt: form.dueAt,
+        reason: form.reason.trim(),
+      });
+      clearDraft();
+      // replace: the back button does not return to the sent request.
+      navigate('/borrow/sent', { state: { loan }, replace: true });
+    } catch (error) {
+      setSending(false);
+      handleSendError(error);
+      window.scrollTo({ top: 0 });
+    }
+  }
+
+  // 02 › Borrow and decision errors: the server's message is shown as it is.
+  function handleSendError(error) {
+    const { code, details = {}, message } = error;
+    if (code === 'ITEM_NOT_AVAILABLE' || code === 'ITEM_NOT_BORROWABLE') {
+      setSendError({ message, items: details.items ?? [] });
+      return;
+    }
+    if (code === 'ITEM_NOT_FOUND' && details.itemCode) {
+      setSendError({ message, items: [{ code: details.itemCode, status: null }] });
+      return;
+    }
+    if (code === 'LOAN_TOO_LONG' && details.maxLoanHours) {
+      setMaxLoanHours(details.maxLoanHours);
+      updateForm({ dueAt: '' });
+    }
+    if (code === 'DUE_IN_PAST') updateForm({ dueAt: '' });
+    if (code === 'ROOM_NOT_FOUND') updateForm({ roomId: null });
+    setSendError({ message, items: [] });
+  }
 
   function openScanner() {
     setAdded('');
@@ -99,6 +180,21 @@ export default function BorrowPage() {
     <>
       <h1 className="text-[28px] font-semibold leading-tight text-ink">Borrow request</h1>
 
+      {showError && (
+        <p
+          role="alert"
+          className="mt-4 flex gap-3 rounded-card bg-danger-bg px-4 py-3 text-[15px] text-danger"
+        >
+          <span aria-hidden="true">!</span>
+          <span>{sendError.message}</span>
+        </p>
+      )}
+      {refused.size > 0 && items.length > refused.size && (
+        <p className="mt-3 text-[15px] text-muted">
+          Other {itemsText(items.length - refused.size)} remain in your request.
+        </p>
+      )}
+
       {added && (
         <p
           role="status"
@@ -123,15 +219,11 @@ export default function BorrowPage() {
           </h2>
           <ul className="mt-1">
             {items.map((item) => (
-              <DraftItem key={item.code} item={item} />
+              <DraftItem key={item.code} item={item} refusedStatus={refused.get(item.code)} />
             ))}
           </ul>
           <div className="mt-4">{addButton}</div>
-          <RequestFields
-            values={form}
-            onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
-            maxLoanHours={maxLoanHours}
-          />
+          <RequestFields values={form} onChange={updateForm} maxLoanHours={maxLoanHours} />
         </section>
       )}
 
@@ -140,9 +232,8 @@ export default function BorrowPage() {
         {!ready && items.length > 0 && (
           <p className="text-sm text-muted">Scroll to choose a room, time and reason ↓</p>
         )}
-        {/* Sending is added in the next step of MF-12. */}
-        <Button fullWidth disabled={!ready}>
-          Send request
+        <Button fullWidth disabled={!ready || sending} onClick={handleSend}>
+          {sending ? 'Sending…' : 'Send request'}
         </Button>
         <button
           type="button"

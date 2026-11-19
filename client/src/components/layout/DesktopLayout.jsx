@@ -89,7 +89,7 @@ export default function DesktopLayout() {
             <p className="text-[15px] font-semibold text-ink">{user.name || user.email}</p>
             <p className="text-xs text-muted">{ROLE_LABELS[user.role]}</p>
             <div className="mt-2 flex gap-4 text-sm font-semibold">
-              <Link to="/profile" className={`text-brand ${focusRing}`}>
+              <Link to="/mod/profile" className={`text-brand ${focusRing}`}>
                 Profile
               </Link>
               <button type="button" onClick={handleLogout} className={`text-brand ${focusRing}`}>

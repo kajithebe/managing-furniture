@@ -60,6 +60,7 @@ export const router = createBrowserRouter([
           { path: '/mod/items/:code', element: placeholder('Item') },
           { path: '/mod/labels', element: <LabelsPage /> },
           { path: '/mod/reports/:report', element: <ReportsPage /> },
+          { path: '/mod/profile', element: <ProfilePage desktop /> },
           {
             element: <RequireAuth roles={ADMIN_ONLY} />,
             children: [

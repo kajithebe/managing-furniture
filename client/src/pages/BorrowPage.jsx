@@ -1,11 +1,13 @@
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
+import AddItemView from '../features/borrow/AddItemView.jsx';
 import { clearDraft, removeDraftItem, useBorrowDraft } from '../features/borrow/borrowDraft.js';
 
 // S4 · Borrow request: the items of one request, each tagged auto-approved / needs approval.
-// Room, until time, reason and sending follow in the next steps of MF-12.
+// "+ Add item" opens the S5 scan view. Room, until time, reason and sending follow next.
 
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
@@ -54,21 +56,57 @@ function DraftItem({ item }) {
 export default function BorrowPage() {
   const items = useBorrowDraft();
   const navigate = useNavigate();
+  const location = useLocation();
+  // "Scan again" on the item page opens the scan view straight away.
+  const [scanning, setScanning] = useState(Boolean(location.state?.scan));
+  // S5 · Scan succeeded: "✓ Chair MP-00124 added".
+  const [added, setAdded] = useState('');
+
+  function openScanner() {
+    setAdded('');
+    setScanning(true);
+  }
+
+  function handleAdded(item) {
+    setAdded(`${item.name || item.category.name} ${item.code} added`);
+    setScanning(false);
+  }
 
   function handleCancel() {
     clearDraft();
     navigate('/loans');
   }
 
+  if (scanning) {
+    return <AddItemView onAdded={handleAdded} onBack={() => setScanning(false)} />;
+  }
+
+  const addButton = (
+    <Button variant="dashed" fullWidth onClick={openScanner}>
+      + Add item
+    </Button>
+  );
+
   return (
     <>
       <h1 className="text-[28px] font-semibold leading-tight text-ink">Borrow request</h1>
+
+      {added && (
+        <p
+          role="status"
+          className="mt-4 flex gap-3 rounded-card bg-brand-tint px-4 py-3 text-[15px] text-ink"
+        >
+          <span aria-hidden="true">✓</span>
+          <span>{added}</span>
+        </p>
+      )}
 
       {items.length === 0 ? (
         <EmptyState
           className="mt-5"
           title="No items yet"
           text="Scan the QR sticker of an item to add it to your request."
+          action={addButton}
         />
       ) : (
         <section aria-labelledby="items-title" className="mt-5">
@@ -80,6 +118,7 @@ export default function BorrowPage() {
               <DraftItem key={item.code} item={item} />
             ))}
           </ul>
+          <div className="mt-4">{addButton}</div>
         </section>
       )}
 

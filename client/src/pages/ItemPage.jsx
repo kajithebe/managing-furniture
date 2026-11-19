@@ -155,6 +155,7 @@ function ItemDetails({ item }) {
 
 // S3 · Not found: a wrong or unknown code (404), or a code the server rejects (400).
 function NotFound({ code, error }) {
+  const navigate = useNavigate();
   const message =
     error.status === 404
       ? error.message
@@ -166,7 +167,12 @@ function NotFound({ code, error }) {
       <Notice tone="danger" role="alert">
         {message}
       </Notice>
-      {/* "Scan again" is added with the scanner (MF-12 step 3). */}
+      <Footer>
+        {/* Opens the "+ Add item" scanner of the borrow request. */}
+        <Button fullWidth onClick={() => navigate('/borrow', { state: { scan: true } })}>
+          Scan again
+        </Button>
+      </Footer>
     </>
   );
 }

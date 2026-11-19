@@ -4,6 +4,7 @@ import Button from '../components/ui/Button.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import LoanCard from '../features/loans/LoanCard.jsx';
 import RecentLoanCard from '../features/loans/RecentLoanCard.jsx';
+import ScanItemView from '../features/loans/ScanItemView.jsx';
 
 // The due lines ("30 min left", "Late since …") are refreshed once a minute.
 const CLOCK_TICK_MS = 60 * 1000;
@@ -32,6 +33,8 @@ export default function MyLoansPage() {
   // The last answer from the API, together with the attempt it belongs to.
   const [result, setResult] = useState({ attempt: -1, open: [], recent: [], failed: false });
   const [now, setNow] = useState(() => new Date());
+  // "Scan an item" shows the scanner in place of the list.
+  const [scanning, setScanning] = useState(false);
 
   const loading = result.attempt !== attempt;
 
@@ -57,12 +60,15 @@ export default function MyLoansPage() {
 
   const noLoans = result.open.length === 0 && result.recent.length === 0;
 
+  if (scanning) {
+    return <ScanItemView onBack={() => setScanning(false)} />;
+  }
+
   return (
     <>
       <h1 className="text-[28px] font-semibold text-ink">My loans</h1>
 
-      {/* Opens the in-app scanner (step 7). */}
-      <Button fullWidth className="mt-4">
+      <Button fullWidth className="mt-4" onClick={() => setScanning(true)}>
         Scan an item
       </Button>
 

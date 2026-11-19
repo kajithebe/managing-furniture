@@ -1,6 +1,7 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 import DesktopLayout from './components/layout/DesktopLayout.jsx';
 import PhoneLayout from './components/layout/PhoneLayout.jsx';
+import HomeRedirect from './features/auth/HomeRedirect.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
@@ -18,7 +19,8 @@ const STAFF = ['MODERATOR', 'ADMIN'];
 const ADMIN_ONLY = ['ADMIN'];
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/loans" replace /> },
+  // Home: Dashboard or My loans, depending on the role (after login if needed).
+  { element: <RequireAuth />, children: [{ path: '/', element: <HomeRedirect /> }] },
 
   // Student (phone)
   {

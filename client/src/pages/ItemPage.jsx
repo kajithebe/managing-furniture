@@ -4,6 +4,7 @@ import { getItem } from '../api/items.js';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
+import { addDraftItem, useBorrowDraft } from '../features/borrow/borrowDraft.js';
 import { approvalText, dueText, roomPath, wheelsText } from '../features/items/itemText.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -79,7 +80,10 @@ function Footer({ children }) {
 function ItemDetails({ item }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const draft = useBorrowDraft();
   const isStaff = STAFF.includes(user?.role);
+  // S3 · Already added: this item is already in the borrow request being put together.
+  const inDraft = draft.some((draftItem) => draftItem.code === item.code);
 
   const rows = [
     ['Category', item.category.name],
@@ -91,6 +95,11 @@ function ItemDetails({ item }) {
     ['Approval', approvalText(item.category)],
   ];
 
+  function handleBorrow() {
+    addDraftItem(item);
+    navigate('/borrow');
+  }
+
   return (
     <>
       <h1 className="text-[28px] font-semibold leading-tight text-ink">
@@ -101,7 +110,11 @@ function ItemDetails({ item }) {
         {item.status === 'AVAILABLE' ? 'Free to borrow' : undefined}
       </Badge>
 
-      <ItemNotice item={item} />
+      {inDraft && item.borrowable ? (
+        <Notice tone="info">This item is already in your request</Notice>
+      ) : (
+        <ItemNotice item={item} />
+      )}
 
       <dl className="mt-5 grid grid-cols-[7rem_1fr] gap-x-4 gap-y-3 text-[15px]">
         {rows.map(([label, value]) => (
@@ -112,16 +125,18 @@ function ItemDetails({ item }) {
         ))}
       </dl>
 
-      {(item.borrowable || isStaff) && (
+      {(inDraft || item.borrowable || isStaff) && (
         <Footer>
-          {item.borrowable && (
-            // The borrow form (/borrow) adds this item to the request.
-            <Button
-              fullWidth
-              onClick={() => navigate('/borrow', { state: { addCode: item.code } })}
-            >
-              Borrow
+          {inDraft ? (
+            <Button fullWidth onClick={() => navigate('/borrow')}>
+              Go to request
             </Button>
+          ) : (
+            item.borrowable && (
+              <Button fullWidth onClick={handleBorrow}>
+                Borrow
+              </Button>
+            )
           )}
           {isStaff && (
             <Button

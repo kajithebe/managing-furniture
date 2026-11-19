@@ -3,6 +3,7 @@ import DesktopLayout from './components/layout/DesktopLayout.jsx';
 import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import HomeRedirect from './features/auth/HomeRedirect.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
+import BorrowPage from './pages/BorrowPage.jsx';
 import ItemPage from './pages/ItemPage.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
@@ -37,7 +38,7 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           { path: '/i/:code', element: <ItemPage /> },
-          { path: '/borrow', element: placeholder('Borrow request') },
+          { path: '/borrow', element: <BorrowPage /> },
           { path: '/loans', element: placeholder('My loans') },
           { path: '/return/:loanId', element: placeholder('Return items') },
           { path: '/r/:qrToken', element: placeholder('Room') },

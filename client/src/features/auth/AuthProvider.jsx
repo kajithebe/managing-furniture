@@ -2,6 +2,7 @@
 // On start it asks the server who is logged in (GET /auth/me); a 401 just means "not logged in".
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as authApi from '../../api/auth.js';
+import { clearDraft } from '../borrow/borrowDraft.js';
 import { AuthContext } from './authContext.js';
 
 export default function AuthProvider({ children }) {
@@ -39,6 +40,8 @@ export default function AuthProvider({ children }) {
     } catch {
       // Ignored on purpose: the user is logged out in the app either way.
     } finally {
+      // The next person on this phone starts with an empty borrow request.
+      clearDraft();
       setUser(null);
     }
   }, []);

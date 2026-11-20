@@ -4,8 +4,9 @@ import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Scanner from '../../components/ui/Scanner.jsx';
 
-// Letters, digits and "-" only (e.g. MP-00124), so the code is safe to put in the URL.
-const CODE_PATTERN = /^[A-Z0-9-]{1,40}$/;
+// Letters, digits, "-" and "/" (MF-21 separators, e.g. MP-00124 or KAR/CHR/00124);
+// 30 characters is the server's limit. The code is encoded before it goes into the URL.
+const CODE_PATTERN = /^[A-Z0-9/-]{1,30}$/;
 
 // My loans › "Scan an item": the scanner frame, or type the asset code instead (S5 layout).
 // The camera inside the frame comes in the next commit (useScanner, needs team agreement).

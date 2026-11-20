@@ -76,9 +76,9 @@ export default function MyLoansPage() {
 
       {!loading && result.failed && (
         <LoadError
+          phone
           className="mt-4"
-          message="Couldn't load your loans. Try again."
-          text="Check your connection and try again."
+          message="Couldn't load your loans."
           onRetry={() => setAttempt((value) => value + 1)}
         />
       )}

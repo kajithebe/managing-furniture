@@ -106,9 +106,7 @@ function ItemDetails({ item }) {
         {item.name || item.category.name}
       </h1>
       <p className="mt-2 font-mono text-xl text-ink">{item.code}</p>
-      <Badge status={BADGES[item.status]} className="mt-3 self-start">
-        {item.status === 'AVAILABLE' ? 'Free to borrow' : undefined}
-      </Badge>
+      <Badge status={BADGES[item.status]} className="mt-3 self-start" />
 
       {inDraft && item.borrowable ? (
         <Notice tone="info">This item is already in your request</Notice>

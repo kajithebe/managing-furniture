@@ -13,7 +13,7 @@ export function wheelsText(item) {
 }
 
 // English plural of a category name: Chair → Chairs, Shelf → Shelves, Bench → Benches.
-function plural(name) {
+export function plural(name) {
   if (/[^aeiou]y$/i.test(name)) return `${name.slice(0, -1)}ies`;
   if (/(s|x|z|ch|sh)$/i.test(name)) return `${name}es`;
   if (/lf$/i.test(name)) return `${name.slice(0, -1)}ves`;

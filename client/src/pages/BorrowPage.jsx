@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createLoan } from '../api/loans.js';
 import Badge from '../components/ui/Badge.jsx';
@@ -8,6 +8,7 @@ import Toast from '../components/ui/Toast.jsx';
 import AddItemView from '../features/borrow/AddItemView.jsx';
 import { clearDraft, removeDraftItem, useBorrowDraft } from '../features/borrow/borrowDraft.js';
 import RequestFields from '../features/borrow/RequestFields.jsx';
+import { plural } from '../features/items/itemText.js';
 
 // S4 · Borrow request: the items of one request, each tagged auto-approved / needs approval.
 // "+ Add item" opens the S5 scan view; below the list: room, until time and reason.
@@ -43,6 +44,18 @@ const BADGES = {
 
 // S4 · Concurrent loan validation: an item the server refused is shown in red with its
 // current status, until the student removes it.
+// "4 chairs, 1 table": the items grouped by category, in the order they were added.
+function categoriesText(items) {
+  const counts = new Map();
+  for (const item of items) counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+  return [...counts]
+    .map(
+      ([category, count]) =>
+        `${count} ${(count === 1 ? category : plural(category)).toLowerCase()}`,
+    )
+    .join(', ');
+}
+
 function DraftItem({ item, refusedStatus }) {
   const refused = refusedStatus !== undefined;
   return (
@@ -86,6 +99,21 @@ export default function BorrowPage() {
   const [added, setAdded] = useState('');
   // The same text as a toast under "Items (n)"; it hides itself after 4 s, the box stays.
   const [toast, setToast] = useState('');
+  // S4 · scrolled: while the "Items (n)" heading is out of view, a sticky link leads back to it.
+  const [itemsHeading, setItemsHeading] = useState(null);
+  const [headingVisible, setHeadingVisible] = useState(true);
+
+  useEffect(() => {
+    if (!itemsHeading) return undefined;
+    const observer = new IntersectionObserver(([entry]) => setHeadingVisible(entry.isIntersecting));
+    observer.observe(itemsHeading);
+    return () => observer.disconnect();
+  }, [itemsHeading]);
+
+  function scrollToItems() {
+    itemsHeading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    itemsHeading.focus({ preventScroll: true });
+  }
   const [form, setForm] = useState({ roomId: null, dueAt: '', reason: '' });
   // Longest loan time setting: from the lookups, or from a LOAN_TOO_LONG answer if it changed.
   const [maxLoanHours, setMaxLoanHours] = useState(null);
@@ -185,6 +213,19 @@ export default function BorrowPage() {
     <>
       <h1 className="text-[28px] font-semibold leading-tight text-ink">Borrow request</h1>
 
+      {itemsHeading && !headingVisible && (
+        <div className="sticky top-0 z-10 -mx-5 border-b border-line bg-page px-5">
+          <button
+            type="button"
+            onClick={scrollToItems}
+            className={`flex min-h-11 items-center text-[13px] text-muted ${focusRing}`}
+          >
+            <span aria-hidden="true">↑&nbsp;</span>
+            Items ({items.length}) · {categoriesText(items)}
+          </button>
+        </div>
+      )}
+
       {showError && (
         <p
           role="alert"
@@ -219,7 +260,12 @@ export default function BorrowPage() {
         />
       ) : (
         <section aria-labelledby="items-title" className="mt-5">
-          <h2 id="items-title" className="text-xl font-semibold text-ink">
+          <h2
+            id="items-title"
+            ref={setItemsHeading}
+            tabIndex={-1}
+            className="scroll-mt-12 text-xl font-semibold text-ink focus:outline-none"
+          >
             Items ({items.length})
           </h2>
           <Toast message={toast} onDismiss={() => setToast('')} className="mt-2" />

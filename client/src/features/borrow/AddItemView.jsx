@@ -67,6 +67,7 @@ export default function AddItemView({ onAdded, onBack }) {
 
   const { regionId, error: cameraError } = useScanner({ onScan: handleScan });
   const denied = cameraError === 'denied';
+  const sentCode = code.trim().toUpperCase();
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -102,6 +103,8 @@ export default function AddItemView({ onAdded, onBack }) {
               setError('');
             }}
             placeholder="MP-00123"
+            // S5: the code as it will be sent, in small grey mono under the field.
+            hint={sentCode ? <span className="font-mono">{sentCode}</span> : undefined}
             maxLength={30}
             autoComplete="off"
             autoCapitalize="characters"

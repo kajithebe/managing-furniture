@@ -8,6 +8,7 @@ import { hoursText, untilOptions } from './untilOptions.js';
 
 // S4 · Room and time options: "Move to room *", "Until *" and "Why? *" (max 120 characters,
 // the same limit as POST /api/loans). values: { roomId, dueAt, reason }; onChange gets a patch.
+// The longest loan time comes with the lookups (loanRules, #24) and is passed up with onLoanRules.
 const REASON_MAX = 120;
 
 // "Karaportti · D · D751" for every room in GET /api/lookups.
@@ -22,7 +23,7 @@ function toRooms(lookups) {
   );
 }
 
-export default function RequestFields({ values, onChange, maxLoanHours }) {
+export default function RequestFields({ values, onChange, maxLoanHours, onLoanRules }) {
   // Counts "Try again" clicks; a new value loads the rooms again.
   const [attempt, setAttempt] = useState(0);
   const [lookups, setLookups] = useState({ attempt: -1, rooms: null });
@@ -32,20 +33,28 @@ export default function RequestFields({ values, onChange, maxLoanHours }) {
   useEffect(() => {
     const controller = new AbortController();
     getLookups({ signal: controller.signal })
-      .then((data) => setLookups({ attempt, rooms: toRooms(data) }))
+      .then((data) => {
+        setLookups({ attempt, rooms: toRooms(data) });
+        onLoanRules(data.loanRules.maxLoanHours);
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') setLookups({ attempt, rooms: null });
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, onLoanRules]);
 
-  const times = untilOptions(now, maxLoanHours);
+  // No times until the longest loan time is known.
+  const times = maxLoanHours ? untilOptions(now, maxLoanHours) : [];
 
   // A time chosen a while ago can now be in the past: then it is cleared.
   function refreshTimes() {
     const fresh = new Date();
     setNow(fresh);
-    if (values.dueAt && !untilOptions(fresh, maxLoanHours).some((t) => t.value === values.dueAt)) {
+    if (
+      values.dueAt &&
+      maxLoanHours &&
+      !untilOptions(fresh, maxLoanHours).some((t) => t.value === values.dueAt)
+    ) {
       onChange({ dueAt: '' });
     }
   }
@@ -91,7 +100,8 @@ export default function RequestFields({ values, onChange, maxLoanHours }) {
         value={values.dueAt}
         onFocus={refreshTimes}
         onChange={(event) => onChange({ dueAt: event.target.value })}
-        hint={`Longest allowed: ${hoursText(maxLoanHours)}`}
+        disabled={!maxLoanHours}
+        hint={maxLoanHours ? `Longest allowed: ${hoursText(maxLoanHours)}` : undefined}
       />
       <Input
         id="reason"

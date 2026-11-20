@@ -7,7 +7,6 @@ import EmptyState from '../components/ui/EmptyState.jsx';
 import AddItemView from '../features/borrow/AddItemView.jsx';
 import { clearDraft, removeDraftItem, useBorrowDraft } from '../features/borrow/borrowDraft.js';
 import RequestFields from '../features/borrow/RequestFields.jsx';
-import { DEFAULT_MAX_LOAN_HOURS } from '../features/borrow/untilOptions.js';
 
 // S4 · Borrow request: the items of one request, each tagged auto-approved / needs approval.
 // "+ Add item" opens the S5 scan view; below the list: room, until time and reason.
@@ -85,8 +84,8 @@ export default function BorrowPage() {
   // S5 · Scan succeeded: "✓ Chair MP-00124 added".
   const [added, setAdded] = useState('');
   const [form, setForm] = useState({ roomId: null, dueAt: '', reason: '' });
-  // Longest loan time setting (see untilOptions.js).
-  const [maxLoanHours, setMaxLoanHours] = useState(DEFAULT_MAX_LOAN_HOURS);
+  // Longest loan time setting: from the lookups, or from a LOAN_TOO_LONG answer if it changed.
+  const [maxLoanHours, setMaxLoanHours] = useState(null);
   const [sending, setSending] = useState(false);
   // The last refused request: { message, items: [{ code, status }] }.
   const [sendError, setSendError] = useState(null);
@@ -223,7 +222,12 @@ export default function BorrowPage() {
             ))}
           </ul>
           <div className="mt-4">{addButton}</div>
-          <RequestFields values={form} onChange={updateForm} maxLoanHours={maxLoanHours} />
+          <RequestFields
+            values={form}
+            onChange={updateForm}
+            maxLoanHours={maxLoanHours}
+            onLoanRules={setMaxLoanHours}
+          />
         </section>
       )}
 

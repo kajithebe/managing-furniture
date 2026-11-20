@@ -1,12 +1,8 @@
 // S4 "Until" choices: every half hour from about 15 minutes from now up to the longest loan
-// time, labelled like the design: "14:00 (2 h 30 min)".
+// time (GET /api/lookups → loanRules.maxLoanHours), labelled like the design: "14:00 (2 h 30 min)".
 const MINUTE = 60 * 1000;
 const STEP = 30 * MINUTE;
 const MIN_LEAD = 15 * MINUTE;
-
-// Until the API returns the setting, the form uses the default of 01 (4 hours) and learns the
-// real value from a LOAN_TOO_LONG answer. Needs team agreement: see the MF-12 PR.
-export const DEFAULT_MAX_LOAN_HOURS = 4;
 
 export function hoursText(hours) {
   return hours === 1 ? '1 hour' : `${hours} hours`;

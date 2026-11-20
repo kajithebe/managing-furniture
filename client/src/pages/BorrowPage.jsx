@@ -4,6 +4,7 @@ import { createLoan } from '../api/loans.js';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
+import Toast from '../components/ui/Toast.jsx';
 import AddItemView from '../features/borrow/AddItemView.jsx';
 import { clearDraft, removeDraftItem, useBorrowDraft } from '../features/borrow/borrowDraft.js';
 import RequestFields from '../features/borrow/RequestFields.jsx';
@@ -83,6 +84,8 @@ export default function BorrowPage() {
   const [scanning, setScanning] = useState(Boolean(location.state?.scan));
   // S5 · Scan succeeded: "✓ Chair MP-00124 added".
   const [added, setAdded] = useState('');
+  // The same text as a toast under "Items (n)"; it hides itself after 4 s, the box stays.
+  const [toast, setToast] = useState('');
   const [form, setForm] = useState({ roomId: null, dueAt: '', reason: '' });
   // Longest loan time setting: from the lookups, or from a LOAN_TOO_LONG answer if it changed.
   const [maxLoanHours, setMaxLoanHours] = useState(null);
@@ -152,11 +155,14 @@ export default function BorrowPage() {
 
   function openScanner() {
     setAdded('');
+    setToast('');
     setScanning(true);
   }
 
   function handleAdded(item) {
-    setAdded(`${item.name || item.category.name} ${item.code} added`);
+    const text = `${item.name || item.category.name} ${item.code} added`;
+    setAdded(text);
+    setToast(text);
     setScanning(false);
   }
 
@@ -216,6 +222,7 @@ export default function BorrowPage() {
           <h2 id="items-title" className="text-xl font-semibold text-ink">
             Items ({items.length})
           </h2>
+          <Toast message={toast} onDismiss={() => setToast('')} className="mt-2" />
           <ul className="mt-1">
             {items.map((item) => (
               <DraftItem key={item.code} item={item} refusedStatus={refused.get(item.code)} />

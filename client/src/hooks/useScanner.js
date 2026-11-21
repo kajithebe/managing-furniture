@@ -15,8 +15,11 @@ import { Html5Qrcode } from 'html5-qrcode';
 const REPEAT_DELAY = 2500;
 
 // Makes the camera video fill the UI kit Scanner frame.
+// "!" (important) is needed: html5-qrcode sets inline styles when it starts (position: relative
+// on this element, and a pixel width on the <video> measured when the element had no width),
+// which made the video 0 px wide, so only the empty frame was visible on the phone.
 export const SCANNER_VIDEO_CLASSES =
-  'absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover';
+  '!absolute inset-0 [&_video]:!h-full [&_video]:!w-full [&_video]:object-cover';
 
 async function stopScanner(scanner) {
   try {

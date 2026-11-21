@@ -11,7 +11,6 @@ export default function Modal({
   onClose,
   onSave,
   saveLabel = 'Save',
-  // NEW: 'dangerFilled' for red confirm buttons (Decline, Deactivate user); default stays green.
   saveVariant = 'primary',
   saveDisabled = false,
   children,
@@ -99,7 +98,6 @@ export default function Modal({
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            {/* NEW: variant={saveVariant} */}
             <Button type="submit" variant={saveVariant} disabled={saveDisabled}>
               {saveLabel}
             </Button>

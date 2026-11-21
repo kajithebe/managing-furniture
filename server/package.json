@@ -1,0 +1,58 @@
+{
+  "name": "managing-furniture-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API for Managing Furniture",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --watch-path=src --env-file-if-exists=../.env src/server.js",
+    "start": "node src/server.js",
+    "predev": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:status": "prisma migrate status",
+    "lint": "eslint . && prettier --check . --ignore-path ../.gitignore --ignore-path ../.prettierignore",
+    "format": "prettier --write . --ignore-path ../.gitignore --ignore-path ../.prettierignore",
+    "db:seed": "node --env-file-if-exists=../.env prisma/seed.js",
+    "db:seed:demo": "node --env-file-if-exists=../.env prisma/seed.js --demo",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.4",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^10.6.0",
+    "pg": "^8.23.1",
+    "prisma": "^7.10.1",
+    "qrcode": "^1.5.4",
+    "zod": "^4.6.7"
+  },
+  "allowScripts": {
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true,
+    "bcrypt@6.0.0": true
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "supertest": "^7.3.2",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "effect": "^3.22.1"
+  }
+}

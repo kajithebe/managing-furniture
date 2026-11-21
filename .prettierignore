@@ -1,0 +1,13 @@
+# dependencies and build output
+node_modules
+dist
+build
+coverage
+
+# generated or locked files
+package-lock.json
+server/prisma/migrations
+
+# environment files
+.env
+.env.*

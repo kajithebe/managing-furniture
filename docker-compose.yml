@@ -1,0 +1,33 @@
+# Local development services: PostgreSQL + Mailpit.
+# Start: docker compose up -d   ·   Stop: docker compose down
+# The values below are for local development only and match DATABASE_URL in .env.example.
+name: managing-furniture
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mf
+      POSTGRES_PASSWORD: mf_dev_password
+      POSTGRES_DB: managing_furniture
+      TZ: Europe/Helsinki
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mf -d managing_furniture']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:1025:1025' # SMTP: the app sends mail here
+      - '127.0.0.1:8025:8025' # Web inbox: http://localhost:8025
+
+volumes:
+  db_data:

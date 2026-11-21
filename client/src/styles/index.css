@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-page font-sans text-ink antialiased;
+  }
+}
+
+/* M8 "Print labels": only the A4 sheets are printed, edge to edge. The sheets keep their own
+   white margin (about 8 mm), so most printers do not cut off a label. */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    @apply bg-surface;
+  }
+}

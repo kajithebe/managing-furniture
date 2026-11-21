@@ -45,7 +45,8 @@ function MenuLink({ item, pathname, count }) {
   );
 }
 
-export default function DesktopLayout() {
+// children: content to show instead of the routed page (used by the 404 page, like PhoneLayout).
+export default function DesktopLayout({ children }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -103,9 +104,7 @@ export default function DesktopLayout() {
         )}
       </aside>
 
-      <main className="min-w-0 flex-1 p-8 print:p-0">
-        <Outlet />
-      </main>
+      <main className="min-w-0 flex-1 p-8 print:p-0">{children ?? <Outlet />}</main>
     </div>
   );
 }

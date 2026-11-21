@@ -1,25 +1,44 @@
 // Six boxes for the 6-digit login code (S2). The parent holds the code as one string ("482913").
 // Typing moves to the next box, Backspace goes back, and pasting or phone autofill
 // ("one-time-code") fills all boxes at once.
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 const LENGTH = 6;
 
 export default function CodeInput({ value, onChange, labelledBy, invalid = false }) {
   const refs = useRef([]);
+  // Box to focus after the parent has saved the new code. Focusing right away would run
+  // handleFocus with the old (shorter) code and jump back to the first empty box.
+  const pendingFocus = useRef(null);
 
-  function focusBox(index) {
-    refs.current[Math.max(0, Math.min(index, LENGTH - 1))]?.focus();
+  useEffect(() => {
+    if (pendingFocus.current === null) return;
+    refs.current[pendingFocus.current]?.focus();
+    pendingFocus.current = null;
+  }, [value]);
+
+  function clamp(index) {
+    return Math.max(0, Math.min(index, LENGTH - 1));
   }
 
-  // Put digits in from box `index` on and move the focus after them.
+  function focusBox(index) {
+    refs.current[clamp(index)]?.focus();
+  }
+
+  // Put digits in from box `index` on, then focus the box after them once the new code is shown.
   function fillFrom(index, digits) {
     const next = (value.slice(0, index) + digits + value.slice(index + digits.length)).slice(
       0,
       LENGTH,
     );
+    const target = clamp(index + digits.length);
+    if (next === value) {
+      // Same code (e.g. the same digit typed again): no re-render, so focus now.
+      focusBox(target);
+      return;
+    }
+    pendingFocus.current = target;
     onChange(next);
-    focusBox(index + digits.length);
   }
 
   // Boxes are filled left to right: clicking an empty box further right goes to the first empty one.

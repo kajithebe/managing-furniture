@@ -20,7 +20,7 @@ function ItemLabel({ item }) {
 
 // One request on M2 Waiting: title line, table of the items still waiting (with actions),
 // and the items already approved in the same request (shown as info).
-export default function RequestCard({ request, onDecided }) {
+export default function RequestCard({ request, onDecided, onConflict }) {
   // LoanItem id that is being approved; blocks a second click while the call runs.
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
@@ -38,8 +38,13 @@ export default function RequestCard({ request, onDecided }) {
       await approveLoanItem(item.id);
       onDecided(item, 'approved');
     } catch (err) {
-      // e.g. ALREADY_DECIDED or ITEM_NOT_AVAILABLE: show the API's message as it is (02).
-      setError(err.message);
+      if (err.status === 409) {
+        // ALREADY_DECIDED / ITEM_NOT_AVAILABLE: the list is out of date, reload it.
+        onConflict(err.message);
+      } else {
+        // e.g. the server can't be reached: show the API's message in this card (02).
+        setError(err.message);
+      }
     } finally {
       setBusyId(null);
     }
@@ -48,6 +53,12 @@ export default function RequestCard({ request, onDecided }) {
   function handleDeclined(item) {
     setDeclining(null);
     onDecided(item, 'declined');
+  }
+
+  // 409 from the Decline pop-up: close it and let the list reload.
+  function handleDeclineConflict(message) {
+    setDeclining(null);
+    onConflict(message);
   }
 
   const title = [
@@ -147,6 +158,7 @@ export default function RequestCard({ request, onDecided }) {
           item={declining}
           onClose={() => setDeclining(null)}
           onDeclined={handleDeclined}
+          onConflict={handleDeclineConflict}
         />
       )}
     </Card>

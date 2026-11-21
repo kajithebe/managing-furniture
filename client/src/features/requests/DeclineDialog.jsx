@@ -5,7 +5,7 @@ import Modal from '../../components/ui/Modal.jsx';
 const NOTE_MAX = 500;
 
 // P10 · Decline request item: optional note to the borrower, red Decline button.
-export default function DeclineDialog({ request, item, onClose, onDeclined }) {
+export default function DeclineDialog({ request, item, onClose, onDeclined, onConflict }) {
   const noteId = useId();
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -18,7 +18,12 @@ export default function DeclineDialog({ request, item, onClose, onDeclined }) {
       await declineLoanItem(item.id, note.trim());
       onDeclined(item);
     } catch (err) {
-      // e.g. ALREADY_DECIDED: show the API's message and keep the pop-up open.
+      if (err.status === 409) {
+        // ALREADY_DECIDED / ITEM_NOT_AVAILABLE: close the pop-up; the list reloads.
+        onConflict(err.message);
+        return;
+      }
+      // e.g. the server can't be reached: keep the pop-up (and the typed note) open.
       setError(err.message);
       setSending(false);
     }

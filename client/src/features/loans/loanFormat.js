@@ -22,6 +22,12 @@ function isSameDay(a, b) {
   return a.toDateString() === b.toDateString();
 }
 
+// "14:00" when the time is today, otherwise "22 Nov 00:10" (e.g. due after midnight).
+export function formatDueTime(value, now = new Date()) {
+  const due = new Date(value);
+  return isSameDay(due, now) ? formatTime(due) : `${formatDay(due)} ${formatTime(due)}`;
+}
+
 // "1 item" / "4 items"
 export function countItems(count) {
   return `${count} ${count === 1 ? 'item' : 'items'}`;
@@ -29,22 +35,21 @@ export function countItems(count) {
 
 // The due line of an open loan card (S7):
 //   normal → "Due 14:00" (or "Due 19 Nov 14:00" when not today)
-//   soon   → "Due today 14:00 · 30 min left"
-//   late   → "Late since 14:00"
+//   soon   → "Due today 14:00 · 30 min left" (or "Due 22 Nov 00:10 · 20 min left" after midnight)
+//   late   → "Late since 14:00" (or "Late since 19 Nov 14:00")
 export function dueInfo(dueAt, now = new Date()) {
   const due = new Date(dueAt);
   const time = formatTime(due);
   const minutesLeft = Math.ceil((due.getTime() - now.getTime()) / 60000);
 
   if (minutesLeft <= 0) {
-    const since = isSameDay(due, now) ? time : `${formatDay(due)} ${time}`;
-    return { kind: 'late', text: `Late since ${since}` };
+    return { kind: 'late', text: `Late since ${formatDueTime(due, now)}` };
   }
   if (minutesLeft <= DUE_SOON_MINUTES) {
-    return { kind: 'soon', text: `Due today ${time} · ${minutesLeft} min left` };
+    const when = isSameDay(due, now) ? `today ${time}` : formatDueTime(due, now);
+    return { kind: 'soon', text: `Due ${when} · ${minutesLeft} min left` };
   }
-  const when = isSameDay(due, now) ? time : `${formatDay(due)} ${time}`;
-  return { kind: 'normal', text: `Due ${when}` };
+  return { kind: 'normal', text: `Due ${formatDueTime(due, now)}` };
 }
 
 // Loan item status (API) → Badge status (UI kit).
@@ -73,7 +78,8 @@ export function homeRoomNames(items) {
 }
 
 // S6 Request sent: the green and orange boxes. A box is null when its count is 0.
-export function requestSummary(loan) {
+// "by 01:30" gets the day when the due time is not today ("by 22 Nov 01:30").
+export function requestSummary(loan, now = new Date()) {
   const approved = loan.items.filter((item) => item.status === 'APPROVED').length;
   const waiting = loan.items.filter((item) => item.status === 'PENDING').length;
 
@@ -85,7 +91,7 @@ export function requestSummary(loan) {
     const back = rooms.length === 1 ? `back in ${rooms[0]}` : 'back';
     approvedText =
       `${countItems(approved)} approved: you can take ${them} now. ` +
-      `Move to ${loan.toRoom.name} · ${back} by ${formatTime(loan.dueAt)}.`;
+      `Move to ${loan.toRoom.name} · ${back} by ${formatDueTime(loan.dueAt, now)}.`;
   }
 
   let waitingText = null;

@@ -12,7 +12,7 @@ const CLOCK_TICK_MS = 60 * 1000;
 // Shared · Loading card list: two grey placeholder cards while the loans load.
 function LoadingCards() {
   return (
-    <div aria-busy="true" aria-label="Loading your loans" className="mt-4 space-y-4">
+    <div role="status" aria-busy="true" aria-label="Loading your loans" className="mt-4 space-y-4">
       {[1, 2].map((key) => (
         <div key={key} className="rounded-card border border-line bg-surface p-5">
           <div className="h-5 rounded bg-subtle" />

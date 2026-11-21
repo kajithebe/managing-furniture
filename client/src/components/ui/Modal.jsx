@@ -11,6 +11,7 @@ export default function Modal({
   onClose,
   onSave,
   saveLabel = 'Save',
+  saveVariant = 'primary',
   saveDisabled = false,
   children,
 }) {
@@ -97,7 +98,7 @@ export default function Modal({
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saveDisabled}>
+            <Button type="submit" variant={saveVariant} disabled={saveDisabled}>
               {saveLabel}
             </Button>
           </div>

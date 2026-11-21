@@ -18,6 +18,9 @@ const VARIANTS = {
   // Danger text and border on white
   danger:
     'border border-danger bg-surface text-danger enabled:hover:bg-danger-bg disabled:border-line disabled:bg-subtle disabled:text-muted',
+  // Filled danger for destructive confirm actions: Decline (M2, P10), Deactivate user (P16)
+  dangerFilled:
+    'bg-danger text-white enabled:hover:opacity-90 disabled:bg-subtle disabled:text-muted',
 };
 
 export default function Button({

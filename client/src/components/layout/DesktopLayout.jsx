@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useWaitingCount } from '../../features/requests/useWaitingCount.js';
 import { useAuth } from '../../hooks/useAuth.js';
 
 // Menu from design-screens M1/M2 (moderator) and A2 (admin).
@@ -49,8 +50,10 @@ export default function DesktopLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // TODO(MF-31): menu counts from GET /api/moderator/dashboard.
-  const counts = {};
+  // MF-15: Requests count from the requests API.
+  // TODO(MF-31): all menu counts (incl. Not yet returned) from GET /api/moderator/dashboard.
+  const waiting = useWaitingCount(pathname);
+  const counts = { waiting };
 
   // logout() ends the session on the server and clears the user in the whole app
   // (it treats a failed request as logged out too). Then go to the login page.

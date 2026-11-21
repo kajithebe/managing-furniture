@@ -6,7 +6,7 @@ import { loginPathFor } from './returnTo.js';
 // deniedLayout: the layout to show "no access" in when this guard sits outside a layout
 // (e.g. the moderator pages: a student sees the message in the phone layout).
 export default function RequireAuth({ roles, deniedLayout: DeniedLayout }) {
-  const { user, loading } = useAuth();
+  const { user, loading, loggedOut } = useAuth();
   const location = useLocation();
 
   // Wait for GET /auth/me, otherwise a logged-in user would flash to /login.
@@ -18,8 +18,10 @@ export default function RequireAuth({ roles, deniedLayout: DeniedLayout }) {
     );
   }
 
+  // Not logged in: back here after the login (returnTo), e.g. to a scanned item. Right after
+  // "Log out" there is nothing to come back to, so plain /login.
   if (!user) {
-    return <Navigate to={loginPathFor(location)} replace />;
+    return <Navigate to={loggedOut ? '/login' : loginPathFor(location)} replace />;
   }
 
   if (roles && !roles.includes(user.role)) {

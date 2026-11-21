@@ -8,6 +8,10 @@ import { AuthContext } from './authContext.js';
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // True right after "Log out": the login guard then opens plain /login, without returnTo, so
+  // the next person who logs in on this device lands on their own home page (not on the page
+  // the last user was on, e.g. a moderator page a student cannot open).
+  const [loggedOut, setLoggedOut] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -29,6 +33,7 @@ export default function AuthProvider({ children }) {
   // A correct code starts the session cookie on the server and returns the user.
   const login = useCallback(async (email, code) => {
     const me = await authApi.verifyCode(email, code);
+    setLoggedOut(false);
     setUser(me);
     return me;
   }, []);
@@ -42,6 +47,7 @@ export default function AuthProvider({ children }) {
     } finally {
       // The next person on this phone starts with an empty borrow request.
       clearDraft();
+      setLoggedOut(true);
       setUser(null);
     }
   }, []);
@@ -53,8 +59,8 @@ export default function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, updateName }),
-    [user, loading, login, logout, updateName],
+    () => ({ user, loading, loggedOut, login, logout, updateName }),
+    [user, loading, loggedOut, login, logout, updateName],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,11 +1,12 @@
 // Seed data for a new installation: default settings, lookup lists, the Karaportti campus
-// and the first admin. With --demo it also adds a demo building with rooms
-// (local development and the Render demo).
+// and the first admin. With --demo it also adds a demo building with rooms and demo items
+// (local development and the Render demo; see demoItems.js).
 // Safe to run many times: it never overwrites or re-creates what an admin has changed.
 // Run with: npm run db:seed   or   npm run db:seed:demo
 import { randomBytes } from 'node:crypto';
 import { env } from '../src/config/env.js';
 import { prisma } from '../src/db.js';
+import { seedDemoItems } from './demoItems.js';
 
 const withDemoData = process.argv.includes('--demo');
 
@@ -117,11 +118,12 @@ async function main() {
   const colours = await seedListIfEmpty(prisma.colour, COLOURS);
   const campuses = await seedListIfEmpty(prisma.campus, [DEFAULT_CAMPUS]);
   const rooms = withDemoData ? await seedDemoLocations() : 0;
+  const items = withDemoData ? await seedDemoItems(prisma, DEFAULT_CAMPUS.code) : 0;
   const admins = await seedFirstAdmin();
 
   console.info(
     `Seed done. Added: ${categories} categories, ${brands} brands, ${colours} colours, ` +
-      `${campuses} campuses, ${rooms} demo rooms, ${admins} first admin.`,
+      `${campuses} campuses, ${rooms} demo rooms, ${items} demo items, ${admins} first admin.`,
   );
 }
 

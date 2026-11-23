@@ -18,7 +18,7 @@ function isAllowedEmail(email) {
   return email.endsWith(`@${env.ALLOWED_EMAIL_DOMAIN}`);
 }
 
-function assertAllowedEmail(email) {
+export function assertAllowedEmail(email) {
   if (!isAllowedEmail(email)) {
     throw new AppError(
       400,
@@ -34,7 +34,7 @@ function newCode() {
 }
 
 // "anna.virtanen@metropolia.fi" → "Anna Virtanen" (users can correct it on their profile).
-function nameFromEmail(email) {
+export function nameFromEmail(email) {
   return email
     .split('@')[0]
     .split(/[._-]+/)

@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { USER_SORT_COLUMNS, listUsers } from '../services/userService.js';
+import { USER_SORT_COLUMNS, createUser, listUsers } from '../services/userService.js';
 
 export const adminRouter = Router();
 
@@ -25,4 +25,23 @@ const usersQuery = z.object({
 // GET /api/admin/users → { data, total, activeAdmins }
 adminRouter.get('/users', async (req, res) => {
   res.json(await listUsers(usersQuery.parse(req.query)));
+});
+
+// P14 Add user: Email *, Name, Role (User by default). z.object drops unknown fields,
+// so a client cannot set active, lastLoginAt …
+const createUserBody = z.object({
+  email: z.string().trim().toLowerCase().min(1).max(254),
+  name: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .transform((value) => value || undefined),
+  role: z.enum(['USER', 'MODERATOR', 'ADMIN']).default('USER'),
+});
+
+// POST /api/admin/users → 201 with the new row (same shape as the list)
+adminRouter.post('/users', async (req, res) => {
+  const body = createUserBody.parse(req.body ?? {});
+  res.status(201).json(await createUser(req.user.id, body));
 });

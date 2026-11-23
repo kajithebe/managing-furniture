@@ -1,6 +1,8 @@
 // User changes. A user's own data is found by the id from the session, never from the request.
 import { prisma } from '../db.js';
-import { publicUser } from './authService.js';
+import { AppError } from '../middleware/error.js';
+import { logChange } from './auditService.js';
+import { assertAllowedEmail, nameFromEmail, publicUser } from './authService.js';
 
 export async function updateOwnName(userId, name) {
   const user = await prisma.user.update({ where: { id: userId }, data: { name } });
@@ -88,4 +90,59 @@ export async function listUsers({ q, role, status, sort, order, page, pageSize }
   }
 
   return { data: rows.map(toRow), total, activeAdmins };
+}
+
+// P14 has no wording for an address that is already in use (proposed in MF-24, see 02).
+function emailTaken(email, existing) {
+  return new AppError(409, 'EMAIL_TAKEN', `${email} already has an account`, {
+    existing: { id: existing.id, name: existing.name },
+  });
+}
+
+// POST /api/admin/users (P14 Add user): add a user in advance with a role. They log in later
+// with a code sent to this email. Without a name, the name is taken from the email, as on
+// first login. The user and its AuditLog row are saved together.
+export async function createUser(actorId, { email, name, role }) {
+  // Same check and wording as login: "Use your @metropolia.fi address".
+  // "@metropolia.fi" alone has no name part, so it gets the same message.
+  assertAllowedEmail(email);
+  if (email.indexOf('@') < 1) {
+    assertAllowedEmail('');
+  }
+
+  try {
+    const user = await prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({
+        where: { email },
+        select: { id: true, name: true },
+      });
+      if (existing) {
+        throw emailTaken(email, existing);
+      }
+
+      const created = await tx.user.create({
+        data: { email, name: name || nameFromEmail(email), role },
+        select: userRowFields,
+      });
+      await logChange(tx, {
+        actorId,
+        entity: 'User',
+        entityId: created.id,
+        action: 'create',
+        after: { email: created.email, name: created.name, role: created.role },
+      });
+      return created;
+    });
+    return toRow(user);
+  } catch (err) {
+    // Two admins adding the same email at the same moment: the unique index stops the second.
+    if (err.code === 'P2002') {
+      const existing = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true, name: true },
+      });
+      throw emailTaken(email, existing ?? { id: null, name: null });
+    }
+    throw err;
+  }
 }

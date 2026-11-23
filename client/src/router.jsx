@@ -14,6 +14,7 @@ import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
 import RequestSentPage from './pages/RequestSentPage.jsx';
+import UsersPage from './pages/UsersPage.jsx';
 import RequestsPage from './pages/RequestsPage.jsx';
 
 // Routes from 02-architecture-and-data-model.md › Frontend routes.
@@ -71,7 +72,7 @@ export const router = createBrowserRouter([
             element: <RequireAuth roles={ADMIN_ONLY} />,
             children: [
               { path: '/admin/settings/:tab', element: placeholder('Settings') },
-              { path: '/admin/users', element: placeholder('Users') },
+              { path: '/admin/users', element: <UsersPage /> },
             ],
           },
         ],

@@ -20,3 +20,8 @@ export function listItems(params, options) {
   const text = search.toString();
   return api.get(`/items${text ? `?${text}` : ''}`, options);
 }
+
+// M6 Add item: POST /api/items with quantity 1–200 → always an array of the created items.
+export function createItems(body, options) {
+  return api.post('/items', body, options);
+}

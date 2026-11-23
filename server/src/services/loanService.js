@@ -6,7 +6,7 @@ import { AppError } from '../middleware/error.js';
 import { checkBorrowable, checkDueAt, initialStatus, itemNotFound } from './loanRules.js';
 
 // What the screens show about a loan (S6 Request sent, S7 My loans).
-const loanFields = {
+export const loanFields = {
   id: true,
   reason: true,
   dueAt: true,

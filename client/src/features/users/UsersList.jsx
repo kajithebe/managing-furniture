@@ -52,7 +52,8 @@ function columnsFor(currentUserId) {
   ];
 }
 
-export default function UsersList() {
+// reloadKey: a new value loads the list again with the same filters (after Add user).
+export default function UsersList({ reloadKey = 0 }) {
   const { user: currentUser } = useAuth();
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -62,10 +63,10 @@ export default function UsersList() {
   const [page, setPage] = useState(1);
   // Counts "Try again" clicks; a new value loads the list again with the same filters.
   const [attempt, setAttempt] = useState(0);
-  // The last answer from the API, together with the query and attempt it belongs to.
+  // The last answer from the API, together with the query and load it belongs to.
   const [result, setResult] = useState({
     params: null,
-    attempt: 0,
+    loadKey: '',
     data: [],
     total: 0,
     failed: false,
@@ -84,22 +85,24 @@ export default function UsersList() {
     () => ({ q, role, status, sort: sort.column, order: sort.order, page, pageSize: PAGE_SIZE }),
     [q, role, status, sort, page],
   );
-  // Loading until the answer for the current filters (and the latest "Try again") has arrived.
-  const loading = result.params !== params || result.attempt !== attempt;
+  // A new "Try again" click or a reload from the page loads the same filters again.
+  const loadKey = `${attempt}-${reloadKey}`;
+  // Loading until the answer for the current filters and the latest load has arrived.
+  const loading = result.params !== params || result.loadKey !== loadKey;
   const loadFailed = !loading && result.failed;
 
   // An older request is cancelled, so a slow answer never replaces a newer one.
   useEffect(() => {
     const controller = new AbortController();
     getUsers(params, { signal: controller.signal })
-      .then(({ data, total }) => setResult({ params, attempt, data, total, failed: false }))
+      .then(({ data, total }) => setResult({ params, loadKey, data, total, failed: false }))
       .catch((error) => {
         if (error.name !== 'AbortError') {
-          setResult({ params, attempt, data: [], total: 0, failed: true });
+          setResult({ params, loadKey, data: [], total: 0, failed: true });
         }
       });
     return () => controller.abort();
-  }, [params, attempt]);
+  }, [params, loadKey]);
 
   function changeSort(column) {
     setSort((current) =>

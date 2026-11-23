@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { listItems } from '../api/items.js';
 import { getLookups } from '../api/lookups.js';
 import Badge from '../components/ui/Badge.jsx';
@@ -12,7 +12,7 @@ import Toggle from '../components/ui/Toggle.jsx';
 import Pagination from '../features/reports/Pagination.jsx';
 
 // M5 Items (moderators and admins): search, filters, "Show disposed items", a sortable table
-// and paging (25 per page). Selecting rows for "Print labels" is added in the next step.
+// and paging (25 per page). Selected rows open the Print labels page (M8).
 const PAGE_SIZE = 25;
 const SEARCH_DELAY_MS = 300;
 const NO_FILTERS = { category: '', campus: '', building: '', room: '', status: '' };
@@ -59,6 +59,26 @@ function toOptions(list) {
   return list.map((entry) => ({ value: String(entry.id), label: entry.name }));
 }
 
+// Row and "select all" checkbox: the 18 px box from 03 inside a 44 px tap area. The table has
+// no room for a visible label, so the checkbox gets an aria-label instead.
+function SelectBox({ label, checked, indeterminate = false, onChange }) {
+  return (
+    <label className="-m-3 inline-flex h-11 w-11 cursor-pointer items-center justify-center">
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={checked}
+        // "Some rows on this page are selected": shown as a dash in the header box.
+        ref={(element) => {
+          if (element) element.indeterminate = indeterminate;
+        }}
+        onChange={(event) => onChange(event.target.checked)}
+        className={`h-[18px] w-[18px] cursor-pointer accent-brand ${focusRing}`}
+      />
+    </label>
+  );
+}
+
 // Column header with the sort arrow: ↕ not sorted, ↑ A–Z, ↓ Z–A.
 function SortButton({ column, sort, onSort }) {
   const active = sort.column === column.key;
@@ -93,6 +113,10 @@ export default function ItemsPage() {
   const [attempt, setAttempt] = useState(0);
   // The last answer from the API, together with the query and attempt it belongs to.
   const [result, setResult] = useState({ params: null, attempt: 0, data: [], total: 0 });
+  // Codes of the selected rows. Kept when the page, filters or sort order change, so items
+  // can be picked from several pages before printing.
+  const [selected, setSelected] = useState([]);
+  const navigate = useNavigate();
 
   const params = useMemo(
     () => ({
@@ -189,6 +213,30 @@ export default function ItemsPage() {
     setPage(1);
   }
 
+  // "Select all" works on the rows of the current page only.
+  const pageCodes = result.data.map((item) => item.code);
+  const pageSelected = pageCodes.filter((code) => selected.includes(code));
+  const allOnPage = pageCodes.length > 0 && pageSelected.length === pageCodes.length;
+
+  function selectRow(code, checked) {
+    setSelected((current) =>
+      checked ? [...current, code] : current.filter((value) => value !== code),
+    );
+  }
+
+  function selectPage(checked) {
+    setSelected((current) =>
+      checked
+        ? [...current, ...pageCodes.filter((code) => !current.includes(code))]
+        : current.filter((code) => !pageCodes.includes(code)),
+    );
+  }
+
+  // M8 reads the selection from the address (see LabelsPage.jsx).
+  function printLabels() {
+    navigate(`/mod/labels?type=items&codes=${encodeURIComponent(selected.join(','))}`);
+  }
+
   const filtersChosen = Boolean(q) || showDisposed || Object.values(filters).some(Boolean);
 
   // Not in the design: same text as the Inventory report (needs team agreement).
@@ -214,11 +262,33 @@ export default function ItemsPage() {
     { name: 'status', label: 'Status', options: STATUSES },
   ];
 
-  const tableColumns = COLUMNS.map((column) => ({
-    key: column.key,
-    header: <SortButton column={column} sort={sort} onSort={changeSort} />,
-    render: column.render,
-  }));
+  const tableColumns = [
+    {
+      key: 'select',
+      header: (
+        <SelectBox
+          label="Select all items on this page"
+          checked={allOnPage}
+          indeterminate={pageSelected.length > 0 && !allOnPage}
+          onChange={selectPage}
+        />
+      ),
+      render: (item) => (
+        <SelectBox
+          label={`Select ${item.code}`}
+          checked={selected.includes(item.code)}
+          onChange={(checked) => selectRow(item.code, checked)}
+        />
+      ),
+    },
+    ...COLUMNS.map((column) => ({
+      key: column.key,
+      header: <SortButton column={column} sort={sort} onSort={changeSort} />,
+      render: column.render,
+    })),
+  ];
+
+  const linkButton = `rounded font-semibold text-brand hover:underline ${focusRing}`;
 
   return (
     <>
@@ -272,6 +342,25 @@ export default function ItemsPage() {
           Clear filters
         </button>
       </div>
+
+      {selected.length > 0 && (
+        <div
+          role="status"
+          className="mt-4 flex items-center gap-1 rounded-card bg-brand-tint px-4 py-3 text-sm text-ink"
+        >
+          <span aria-hidden="true" className="mr-1 font-semibold text-brand">
+            i
+          </span>
+          {selected.length} selected ·
+          <button type="button" onClick={printLabels} className={linkButton}>
+            Print labels
+          </button>
+          ·
+          <button type="button" onClick={() => setSelected([])} className={linkButton}>
+            Clear selection
+          </button>
+        </div>
+      )}
 
       {loadFailed ? (
         <LoadError className="mt-4" onRetry={() => setAttempt((current) => current + 1)} />

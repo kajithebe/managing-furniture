@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { getDashboard } from '../api/moderator.js';
 import LoadError from '../components/ui/LoadError.jsx';
 import DashboardTiles from '../features/dashboard/DashboardTiles.jsx';
+import DueTodayPanel from '../features/dashboard/DueTodayPanel.jsx';
+import ItemsByStatusPanel from '../features/dashboard/ItemsByStatusPanel.jsx';
 import OverduePanel from '../features/dashboard/OverduePanel.jsx';
 import WaitingPanel from '../features/dashboard/WaitingPanel.jsx';
 import { formatClock } from '../features/requests/format.js';
@@ -71,6 +73,14 @@ export default function DashboardPage() {
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <WaitingPanel rows={dashboard.waiting} />
           <OverduePanel rows={dashboard.overdue} now={dashboard.updatedAt} />
+        </div>
+        {/* Lower half of M1: Due back today and Items by status on the left (3/5 wide);
+            Recent activity comes on the right. */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-5">
+          <div className="space-y-6 lg:col-span-3">
+            <DueTodayPanel rows={dashboard.dueToday} />
+            <ItemsByStatusPanel rows={dashboard.itemsByStatus} />
+          </div>
         </div>
       </>
     );

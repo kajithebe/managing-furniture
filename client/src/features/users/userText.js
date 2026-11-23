@@ -31,3 +31,21 @@ export function deactivateText(user) {
       : `Their ${user.openLoans} open loans stay visible to moderators.`;
   return `${question} ${loans}`;
 }
+
+// P15: "A Moderator can:" and the list under it. The Moderator list is the P15 design; the User
+// and Admin lists follow 01 › Roles and permissions (no design; needs team agreement).
+const MODERATOR_CAN = [
+  'Borrow and return furniture',
+  'Approve requests and follow up late items',
+  'Manage items, labels and reports',
+  'Add categories, brands, colours and locations',
+];
+
+export const ROLE_ABILITIES = {
+  USER: { intro: 'A User can:', items: ['Borrow and return furniture', 'See their own loans'] },
+  MODERATOR: { intro: 'A Moderator can:', items: MODERATOR_CAN },
+  ADMIN: {
+    intro: 'An Admin can:',
+    items: [...MODERATOR_CAN, 'Change settings and asset codes', 'Add users and change roles'],
+  },
+};

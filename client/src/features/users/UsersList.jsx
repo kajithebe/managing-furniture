@@ -10,7 +10,9 @@ import Table from '../../components/ui/Table.jsx';
 import { useAuth } from '../../hooks/useAuth.js';
 import Pagination from '../reports/Pagination.jsx';
 import { formatDateTime } from '../requests/format.js';
+import ChangeRoleDialog from './ChangeRoleDialog.jsx';
 import DeactivateDialog from './DeactivateDialog.jsx';
+import UserPanel from './UserPanel.jsx';
 import { ROLES, STATUSES, roleLabel } from './userText.js';
 
 // A2 Users: search, Role and Status filters, a sortable table and paging (25 per page).
@@ -35,9 +37,22 @@ function ActionLink({ children, ...rest }) {
 }
 
 // `key` is also the sort column of the API (GET /admin/users, sort=).
-function columnsFor(currentUserId) {
+function columnsFor(currentUserId, onSelect) {
   return [
-    { key: 'name', label: 'Name', render: (user) => user.name },
+    {
+      key: 'name',
+      label: 'Name',
+      // Clicking a name opens the A2 panel for that user (also the admin's own, locked row).
+      render: (user) => (
+        <button
+          type="button"
+          onClick={() => onSelect(user)}
+          className={`rounded text-left text-ink hover:underline ${focusRing}`}
+        >
+          {user.name}
+        </button>
+      ),
+    },
     {
       key: 'email',
       label: 'Email',
@@ -70,18 +85,24 @@ function columnsFor(currentUserId) {
   ];
 }
 
-// Actions (A2): Deactivate for active users, Reactivate for deactivated ones. The admin's own
-// row has no actions (02 › User safety rules). Change role and View history come next.
-function renderActions(user, currentUserId, { busyId, onDeactivate, onReactivate }) {
+// Actions (A2): "Change role / Deactivate" (or Reactivate). The admin's own row has no
+// actions (02 › User safety rules). View history waits for GET /admin/audit (team agreement).
+function renderActions(user, currentUserId, { busyId, onChangeRole, onDeactivate, onReactivate }) {
   if (user.id === currentUserId) {
     return null;
   }
-  return user.active ? (
-    <ActionLink onClick={() => onDeactivate(user)}>Deactivate</ActionLink>
-  ) : (
-    <ActionLink disabled={busyId === user.id} onClick={() => onReactivate(user)}>
-      Reactivate
-    </ActionLink>
+  return (
+    <span className="whitespace-nowrap">
+      <ActionLink onClick={() => onChangeRole(user)}>Change role</ActionLink>
+      <span className="text-muted"> / </span>
+      {user.active ? (
+        <ActionLink onClick={() => onDeactivate(user)}>Deactivate</ActionLink>
+      ) : (
+        <ActionLink disabled={busyId === user.id} onClick={() => onReactivate(user)}>
+          Reactivate
+        </ActionLink>
+      )}
+    </span>
   );
 }
 
@@ -96,8 +117,12 @@ export default function UsersList({ reloadKey = 0 }) {
   const [page, setPage] = useState(1);
   // Counts "Try again" clicks; a new value loads the list again with the same filters.
   const [attempt, setAttempt] = useState(0);
-  // Counts saved changes (deactivate, reactivate); a new value loads the list again.
+  // Counts saved changes (role, deactivate, reactivate); a new value loads the list again.
   const [changes, setChanges] = useState(0);
+  // The user shown in the A2 panel under the table (by id, so a reload shows the new values).
+  const [selectedId, setSelectedId] = useState(null);
+  // P15 is open for { user, newRole }.
+  const [changingRole, setChangingRole] = useState(null);
   const [deactivating, setDeactivating] = useState(null);
   const [reactivatingId, setReactivatingId] = useState(null);
   const [actionError, setActionError] = useState('');
@@ -107,6 +132,7 @@ export default function UsersList({ reloadKey = 0 }) {
     loadKey: '',
     data: [],
     total: 0,
+    activeAdmins: 0,
     failed: false,
   });
 
@@ -133,10 +159,12 @@ export default function UsersList({ reloadKey = 0 }) {
   useEffect(() => {
     const controller = new AbortController();
     getUsers(params, { signal: controller.signal })
-      .then(({ data, total }) => setResult({ params, loadKey, data, total, failed: false }))
+      .then(({ data, total, activeAdmins }) =>
+        setResult({ params, loadKey, data, total, activeAdmins, failed: false }),
+      )
       .catch((error) => {
         if (error.name !== 'AbortError') {
-          setResult({ params, loadKey, data: [], total: 0, failed: true });
+          setResult({ params, loadKey, data: [], total: 0, activeAdmins: 0, failed: true });
         }
       });
     return () => controller.abort();
@@ -173,8 +201,22 @@ export default function UsersList({ reloadKey = 0 }) {
     }
   }
 
+  function selectUser(user) {
+    setActionError('');
+    setSelectedId(user.id);
+  }
+
+  // The panel shows the chosen user while they are on the current page.
+  const selected = result.data.find((user) => user.id === selectedId) ?? null;
+
+  function afterChange() {
+    setChangingRole(null);
+    setDeactivating(null);
+    setChanges((current) => current + 1);
+  }
+
   const tableColumns = [
-    ...columnsFor(currentUser?.id).map((column) => ({
+    ...columnsFor(currentUser?.id, selectUser).map((column) => ({
       key: column.key,
       header: <SortButton column={column} sort={sort} onSort={changeSort} />,
       render: column.render,
@@ -185,6 +227,16 @@ export default function UsersList({ reloadKey = 0 }) {
       render: (user) =>
         renderActions(user, currentUser?.id, {
           busyId: reactivatingId,
+          // Opens the panel and moves focus to its Role dropdown, which leads to P15.
+          onChangeRole: (target) => {
+            selectUser(target);
+            // After React has drawn the panel.
+            setTimeout(() => {
+              const roleSelect = document.getElementById('user-panel-role');
+              roleSelect?.scrollIntoView({ block: 'center' });
+              roleSelect?.focus();
+            });
+          },
           onDeactivate: (target) => {
             setActionError('');
             setDeactivating(target);
@@ -269,14 +321,34 @@ export default function UsersList({ reloadKey = 0 }) {
         </div>
       )}
 
+      {selected && !loadFailed && (
+        <UserPanel
+          // A new user (or new values after a change) resets the Role dropdown.
+          key={`${selected.id}-${selected.role}-${selected.active}`}
+          user={selected}
+          isSelf={selected.id === currentUser?.id}
+          activeAdmins={result.activeAdmins}
+          busy={reactivatingId === selected.id}
+          onRoleChange={(newRole) => setChangingRole({ user: selected, newRole })}
+          onDeactivate={() => setDeactivating(selected)}
+          onReactivate={() => reactivate(selected)}
+        />
+      )}
+
+      {changingRole && (
+        <ChangeRoleDialog
+          user={changingRole.user}
+          newRole={changingRole.newRole}
+          onClose={() => setChangingRole(null)}
+          onDone={afterChange}
+        />
+      )}
+
       {deactivating && (
         <DeactivateDialog
           user={deactivating}
           onClose={() => setDeactivating(null)}
-          onDone={() => {
-            setDeactivating(null);
-            setChanges((current) => current + 1);
-          }}
+          onDone={afterChange}
         />
       )}
     </>

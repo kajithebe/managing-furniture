@@ -1,4 +1,4 @@
-// Users API for admins (02 › API contract, MF-24): GET and POST /api/admin/users.
+// Users API for admins (02 › API contract, MF-24): GET and POST /api/admin/users, PATCH /api/admin/users/:id.
 import { api } from './client.js';
 import { reportQuery } from './reports.js';
 
@@ -11,4 +11,9 @@ export function getUsers(params, options) {
 // P14 Add user: { email, name, role } → 201 with the new row.
 export function addUser(body) {
   return api.post('/admin/users', body);
+}
+
+// A2 panel, P15, P16: { role } or { active } → the updated row.
+export function updateUser(id, changes) {
+  return api.patch(`/admin/users/${id}`, changes);
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { getDashboard } from '../api/moderator.js';
 import LoadError from '../components/ui/LoadError.jsx';
 import DashboardTiles from '../features/dashboard/DashboardTiles.jsx';
+import OverduePanel from '../features/dashboard/OverduePanel.jsx';
+import WaitingPanel from '../features/dashboard/WaitingPanel.jsx';
 import { formatClock } from '../features/requests/format.js';
 
 // M1 Dashboard (moderators and admins). Everything comes from one call, loaded when the page
@@ -63,7 +65,15 @@ export default function DashboardPage() {
       />
     );
   } else {
-    content = <DashboardTiles tiles={dashboard.tiles} />;
+    content = (
+      <>
+        <DashboardTiles tiles={dashboard.tiles} />
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <WaitingPanel rows={dashboard.waiting} />
+          <OverduePanel rows={dashboard.overdue} now={dashboard.updatedAt} />
+        </div>
+      </>
+    );
   }
 
   return (

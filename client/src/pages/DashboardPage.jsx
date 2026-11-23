@@ -5,6 +5,7 @@ import DashboardTiles from '../features/dashboard/DashboardTiles.jsx';
 import DueTodayPanel from '../features/dashboard/DueTodayPanel.jsx';
 import ItemsByStatusPanel from '../features/dashboard/ItemsByStatusPanel.jsx';
 import OverduePanel from '../features/dashboard/OverduePanel.jsx';
+import RecentActivityPanel from '../features/dashboard/RecentActivityPanel.jsx';
 import WaitingPanel from '../features/dashboard/WaitingPanel.jsx';
 import { formatClock } from '../features/requests/format.js';
 
@@ -74,12 +75,15 @@ export default function DashboardPage() {
           <WaitingPanel rows={dashboard.waiting} />
           <OverduePanel rows={dashboard.overdue} now={dashboard.updatedAt} />
         </div>
-        {/* Lower half of M1: Due back today and Items by status on the left (3/5 wide);
-            Recent activity comes on the right. */}
+        {/* Lower half of M1: Due back today and Items by status on the left (3/5 wide),
+            Recent activity on the right (2/5). */}
         <div className="mt-6 grid gap-6 lg:grid-cols-5">
           <div className="space-y-6 lg:col-span-3">
             <DueTodayPanel rows={dashboard.dueToday} />
             <ItemsByStatusPanel rows={dashboard.itemsByStatus} />
+          </div>
+          <div className="lg:col-span-2">
+            <RecentActivityPanel events={dashboard.recentActivity} now={dashboard.updatedAt} />
           </div>
         </div>
       </>

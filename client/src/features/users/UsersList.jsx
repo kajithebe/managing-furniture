@@ -85,16 +85,22 @@ function columnsFor(currentUserId, onSelect) {
   ];
 }
 
-// Actions (A2): "Change role / Deactivate" (or Reactivate). The admin's own row has no
-// actions (02 › User safety rules). View history waits for GET /admin/audit (team agreement).
-function renderActions(user, currentUserId, { busyId, onChangeRole, onDeactivate, onReactivate }) {
+// Actions (A2): "Change role / Deactivate / View history" (or Reactivate). The admin's own
+// row only has View history (02 › User safety rules).
+function renderActions(
+  user,
+  currentUserId,
+  { busyId, onChangeRole, onDeactivate, onReactivate, onViewHistory },
+) {
+  const viewHistory = <ActionLink onClick={() => onViewHistory(user)}>View history</ActionLink>;
   if (user.id === currentUserId) {
-    return null;
+    return viewHistory;
   }
+  const separator = <span className="text-muted"> / </span>;
   return (
     <span className="whitespace-nowrap">
       <ActionLink onClick={() => onChangeRole(user)}>Change role</ActionLink>
-      <span className="text-muted"> / </span>
+      {separator}
       {user.active ? (
         <ActionLink onClick={() => onDeactivate(user)}>Deactivate</ActionLink>
       ) : (
@@ -102,8 +108,21 @@ function renderActions(user, currentUserId, { busyId, onChangeRole, onDeactivate
           Reactivate
         </ActionLink>
       )}
+      {separator}
+      {viewHistory}
     </span>
   );
+}
+
+// After React has drawn the panel: bring an element in it into view (and focus it if asked).
+function showInPanel(elementId, focus = false) {
+  setTimeout(() => {
+    const element = document.getElementById(elementId);
+    element?.scrollIntoView({ block: 'center' });
+    if (focus) {
+      element?.focus();
+    }
+  });
 }
 
 // reloadKey: a new value loads the list again with the same filters (after Add user).
@@ -121,6 +140,8 @@ export default function UsersList({ reloadKey = 0 }) {
   const [changes, setChanges] = useState(0);
   // The user shown in the A2 panel under the table (by id, so a reload shows the new values).
   const [selectedId, setSelectedId] = useState(null);
+  // "View history" shows the user's history in the panel.
+  const [historyOpen, setHistoryOpen] = useState(false);
   // P15 is open for { user, newRole }.
   const [changingRole, setChangingRole] = useState(null);
   const [deactivating, setDeactivating] = useState(null);
@@ -201,9 +222,10 @@ export default function UsersList({ reloadKey = 0 }) {
     }
   }
 
-  function selectUser(user) {
+  function selectUser(user, { history = false } = {}) {
     setActionError('');
     setSelectedId(user.id);
+    setHistoryOpen(history);
   }
 
   // The panel shows the chosen user while they are on the current page.
@@ -230,12 +252,11 @@ export default function UsersList({ reloadKey = 0 }) {
           // Opens the panel and moves focus to its Role dropdown, which leads to P15.
           onChangeRole: (target) => {
             selectUser(target);
-            // After React has drawn the panel.
-            setTimeout(() => {
-              const roleSelect = document.getElementById('user-panel-role');
-              roleSelect?.scrollIntoView({ block: 'center' });
-              roleSelect?.focus();
-            });
+            showInPanel('user-panel-role', true);
+          },
+          onViewHistory: (target) => {
+            selectUser(target, { history: true });
+            showInPanel('user-history');
           },
           onDeactivate: (target) => {
             setActionError('');
@@ -329,6 +350,8 @@ export default function UsersList({ reloadKey = 0 }) {
           isSelf={selected.id === currentUser?.id}
           activeAdmins={result.activeAdmins}
           busy={reactivatingId === selected.id}
+          showHistory={historyOpen}
+          historyKey={changes}
           onRoleChange={(newRole) => setChangingRole({ user: selected, newRole })}
           onDeactivate={() => setDeactivating(selected)}
           onReactivate={() => reactivate(selected)}

@@ -16,10 +16,6 @@ export function roleLabel(role) {
   return ROLE_LABELS[role] ?? role;
 }
 
-// P16: "Deactivate Aino Virtanen? She can't log in until reactivated. Her 1 open loan stays
-// visible to moderators." We don't know a user's pronoun, so "They" / "Their" is used, the
-// count gets a plural, and the loan sentence is left out with no open loans (03 › wording
-// that can go wrong with real data; needs team agreement).
 export function deactivateText(user) {
   const question = `Deactivate ${user.name}? They can't log in until reactivated.`;
   if (user.openLoans === 0) {
@@ -32,8 +28,6 @@ export function deactivateText(user) {
   return `${question} ${loans}`;
 }
 
-// P15: "A Moderator can:" and the list under it. The Moderator list is the P15 design; the User
-// and Admin lists follow 01 › Roles and permissions (no design; needs team agreement).
 const MODERATOR_CAN = [
   'Borrow and return furniture',
   'Approve requests and follow up late items',
@@ -49,3 +43,19 @@ export const ROLE_ABILITIES = {
     items: [...MODERATOR_CAN, 'Change settings and asset codes', 'Add users and change roles'],
   },
 };
+
+// View history lines. No design for the history list (needs team agreement).
+export function historyText(entry) {
+  switch (entry.action) {
+    case 'create':
+      return `Added as ${roleLabel(entry.after?.role)}`;
+    case 'role_change':
+      return `Role changed from ${roleLabel(entry.before?.role)} to ${roleLabel(entry.after?.role)}`;
+    case 'deactivate':
+      return 'Deactivated';
+    case 'reactivate':
+      return 'Reactivated';
+    default:
+      return entry.action;
+  }
+}

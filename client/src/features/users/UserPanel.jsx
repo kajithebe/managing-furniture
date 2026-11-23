@@ -2,15 +2,19 @@ import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Select from '../../components/ui/Select.jsx';
+import UserHistory from './UserHistory.jsx';
 import { ROLES, roleLabel } from './userText.js';
 
 // A2 panel under the table for the chosen user: Role, Status and Deactivate / Reactivate.
 // The admin's own row is locked (02 › User safety rules), with one of the two A2 notes.
+// showHistory: "View history" was clicked; historyKey reloads the history after a change.
 export default function UserPanel({
   user,
   isSelf,
   activeAdmins,
   busy,
+  showHistory,
+  historyKey,
   onRoleChange,
   onDeactivate,
   onReactivate,
@@ -69,6 +73,8 @@ export default function UserPanel({
           {note}
         </p>
       )}
+
+      {showHistory && <UserHistory userId={user.id} reloadKey={historyKey} />}
     </Card>
   );
 }

@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { listAudit } from '../services/auditService.js';
 import { USER_SORT_COLUMNS, createUser, listUsers, updateUser } from '../services/userService.js';
 
 export const adminRouter = Router();
@@ -64,4 +65,25 @@ adminRouter.patch('/users/:id', async (req, res) => {
   const { id } = idParams.parse(req.params);
   const changes = updateUserBody.parse(req.body ?? {});
   res.json(await updateUser(req.user.id, id, changes));
+});
+
+// View history (A2): the AuditLog, optionally for one entity ("User") or one entry
+// (entity + entityId), 25 per page, newest first.
+const auditQuery = z
+  .object({
+    entity: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{1,30}$/)
+      .optional(),
+    entityId: z.coerce.number().int().positive().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+  })
+  .refine((query) => !query.entityId || query.entity, {
+    message: 'entityId needs entity',
+  });
+
+// GET /api/admin/audit → { data, total }
+adminRouter.get('/audit', async (req, res) => {
+  res.json(await listAudit(auditQuery.parse(req.query)));
 });

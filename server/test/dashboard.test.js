@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/db.js', () => ({
   prisma: {
-    user: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn(), findMany: vi.fn() },
     loanItem: { count: vi.fn(), findMany: vi.fn() },
-    item: { count: vi.fn() },
+    item: { count: vi.fn(), groupBy: vi.fn() },
+    category: { findMany: vi.fn() },
+    itemEvent: { findMany: vi.fn() },
     room: { findMany: vi.fn() },
   },
 }));
@@ -73,6 +75,55 @@ function mockLists() {
   prisma.room.findMany.mockResolvedValue([D569, D751]);
 }
 
+const chair = { id: 1, name: 'Chair', archived: false };
+const table = { id: 3, name: 'Table', archived: false };
+const lamp = { id: 7, name: 'Lamp', archived: true };
+
+// "Items by status": the database's groups of category + onLoan + condition.
+function mockItemsByStatus() {
+  prisma.category.findMany.mockResolvedValue([chair, table, lamp]);
+  prisma.item.groupBy.mockResolvedValue([
+    { categoryId: 1, onLoan: false, condition: 'GOOD', _count: { _all: 6200 } },
+    { categoryId: 1, onLoan: true, condition: 'GOOD', _count: { _all: 20 } },
+    // A Needs repair chair on loan counts as On loan, as everywhere else in the app.
+    { categoryId: 1, onLoan: true, condition: 'NEEDS_REPAIR', _count: { _all: 4 } },
+    { categoryId: 1, onLoan: false, condition: 'NEEDS_REPAIR', _count: { _all: 12 } },
+    { categoryId: 1, onLoan: false, condition: 'BROKEN', _count: { _all: 4 } },
+    { categoryId: 1, onLoan: false, condition: 'IN_REPAIR', _count: { _all: 6 } },
+    { categoryId: 1, onLoan: false, condition: 'DISPOSED', _count: { _all: 50 } },
+  ]);
+}
+
+const mikko = { id: 9, name: 'Mikko Laine' };
+
+// "Mikko Laine approved Table MP-02210 → D751 · 10:12"
+const approvedEvent = {
+  id: 101,
+  type: 'APPROVED',
+  createdAt: new Date('2026-11-09T08:12:00Z'),
+  userId: mikko.id,
+  loanId: 5,
+  fromRoomId: D569.id,
+  toRoomId: D751.id,
+  item: { code: 'MP-02210', name: 'Table' },
+};
+// An event without a user or rooms, e.g. from a job.
+const overdueEvent = {
+  id: 100,
+  type: 'OVERDUE',
+  createdAt: new Date('2026-11-09T08:00:00Z'),
+  userId: null,
+  loanId: 4,
+  fromRoomId: null,
+  toRoomId: null,
+  item: { code: 'MP-00126', name: 'Chair' },
+};
+
+function mockRecentActivity() {
+  prisma.itemEvent.findMany.mockResolvedValue([approvedEvent, overdueEvent]);
+  prisma.user.findMany.mockResolvedValue([mikko]);
+}
+
 // The M1 tiles: 3 waiting, 2 not yet returned, 41 on loan, 9,812 items.
 function mockCounts() {
   prisma.loanItem.count.mockImplementation(({ where }) =>
@@ -85,6 +136,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCounts();
   mockLists();
+  mockItemsByStatus();
+  mockRecentActivity();
 });
 
 describe('GET /api/moderator/dashboard', () => {
@@ -209,5 +262,91 @@ describe('GET /api/moderator/dashboard', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ waiting: [], overdue: [], dueToday: [] });
+  });
+
+  it('counts items by status per category (M1)', async () => {
+    const res = await request(createApp())
+      .get('/api/moderator/dashboard')
+      .set('Cookie', loginAs('MODERATOR'));
+
+    expect(res.body.itemsByStatus).toEqual([
+      {
+        category: { id: 1, name: 'Chair' },
+        available: 6200,
+        onLoan: 24,
+        needsRepair: 12,
+        broken: 4,
+        inRepair: 6,
+        disposed: 50,
+      },
+      // A category without items shows zeros.
+      {
+        category: { id: 3, name: 'Table' },
+        available: 0,
+        onLoan: 0,
+        needsRepair: 0,
+        broken: 0,
+        inRepair: 0,
+        disposed: 0,
+      },
+      // The archived Lamp category has no items, so it is not listed.
+    ]);
+    // The database counts; items are never loaded one by one.
+    expect(prisma.item.groupBy).toHaveBeenCalledWith({
+      by: ['categoryId', 'onLoan', 'condition'],
+      _count: { _all: true },
+    });
+  });
+
+  it('lists an archived category while it still has items', async () => {
+    prisma.item.groupBy.mockResolvedValue([
+      { categoryId: 7, onLoan: false, condition: 'GOOD', _count: { _all: 2 } },
+    ]);
+    const res = await request(createApp())
+      .get('/api/moderator/dashboard')
+      .set('Cookie', loginAs('MODERATOR'));
+
+    expect(res.body.itemsByStatus.map((row) => row.category.name)).toEqual([
+      'Chair',
+      'Table',
+      'Lamp',
+    ]);
+  });
+
+  it('returns the last 10 events with names, newest first (M1 Recent activity)', async () => {
+    const res = await request(createApp())
+      .get('/api/moderator/dashboard')
+      .set('Cookie', loginAs('MODERATOR'));
+
+    expect(res.body.recentActivity).toEqual([
+      {
+        id: 101,
+        type: 'APPROVED',
+        createdAt: '2026-11-09T08:12:00.000Z',
+        user: mikko,
+        item: { code: 'MP-02210', name: 'Table' },
+        loanId: 5,
+        fromRoom: D569,
+        toRoom: D751,
+      },
+      {
+        id: 100,
+        type: 'OVERDUE',
+        createdAt: '2026-11-09T08:00:00.000Z',
+        user: null,
+        item: { code: 'MP-00126', name: 'Chair' },
+        loanId: 4,
+        fromRoom: null,
+        toRoom: null,
+      },
+    ]);
+    expect(prisma.itemEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 10,
+      }),
+    );
+    // The note can hold a borrower's reason; M1 does not show it.
+    expect(prisma.itemEvent.findMany.mock.calls[0][0].select).not.toHaveProperty('note');
   });
 });

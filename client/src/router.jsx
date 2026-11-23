@@ -4,6 +4,7 @@ import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import HomeRedirect from './features/auth/HomeRedirect.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
 import BorrowPage from './pages/BorrowPage.jsx';
+import DashboardPage from './pages/DashboardPage.jsx';
 import ItemPage from './pages/ItemPage.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
@@ -59,7 +60,7 @@ export const router = createBrowserRouter([
       {
         element: <DesktopLayout />,
         children: [
-          { path: '/mod', element: placeholder('Dashboard') },
+          { path: '/mod', element: <DashboardPage /> },
           { path: '/mod/requests', element: <RequestsPage /> },
           { path: '/mod/overdue', element: placeholder('Not yet returned') },
           { path: '/mod/items', element: placeholder('Items') },

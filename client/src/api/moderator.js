@@ -23,3 +23,8 @@ export function declineLoanItem(loanItemId, note) {
     note ? { note } : {},
   );
 }
+
+// M1 Dashboard: tiles, lists, items by status and recent activity in one call (MF-31).
+export function getDashboard(options) {
+  return api.get('/moderator/dashboard', options);
+}

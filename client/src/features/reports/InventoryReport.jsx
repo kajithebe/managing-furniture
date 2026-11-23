@@ -5,6 +5,7 @@ import Badge from '../../components/ui/Badge.jsx';
 import Button from '../../components/ui/Button.jsx';
 import LoadError from '../../components/ui/LoadError.jsx';
 import Select from '../../components/ui/Select.jsx';
+import SortButton from '../../components/ui/SortButton.jsx';
 import Table from '../../components/ui/Table.jsx';
 import Pagination from './Pagination.jsx';
 import ReportsHeader from './ReportsHeader.jsx';
@@ -24,9 +25,6 @@ const STATUSES = [
 ];
 const BADGES = Object.fromEntries(STATUSES.map((status) => [status.value, status.badge]));
 
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
-
 // The M9 columns. `key` is also the sort column of the API (02 › GET /items, sort=).
 const COLUMNS = [
   { key: 'code', label: 'Code', render: (item) => <span className="font-mono">{item.code}</span> },
@@ -42,25 +40,6 @@ const COLUMNS = [
 
 function toOptions(list) {
   return list.map((entry) => ({ value: String(entry.id), label: entry.name }));
-}
-
-// Column header with the sort arrow: ↕ not sorted, ↑ A–Z, ↓ Z–A.
-function SortButton({ column, sort, onSort }) {
-  const active = sort.column === column.key;
-  const arrow = active ? (sort.order === 'asc' ? '↑' : '↓') : '↕';
-  const state = active ? (sort.order === 'asc' ? ', sorted A to Z' : ', sorted Z to A') : '';
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(column.key)}
-      aria-label={`Sort by ${column.label}${state}`}
-      className={`inline-flex items-center gap-1 rounded ${focusRing} ${active ? 'text-ink' : ''}`}
-    >
-      {column.label}
-      <span aria-hidden="true">{arrow}</span>
-    </button>
-  );
 }
 
 export default function InventoryReport() {

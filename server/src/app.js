@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import { errorHandler, notFound } from './middleware/error.js';
 import { originCheck } from './middleware/origin.js';
 import { apiRateLimit } from './middleware/rateLimit.js';
+import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 import { itemsRouter } from './routes/items.js';
@@ -60,6 +61,7 @@ export function createApp({ clientDist = DEFAULT_CLIENT_DIST } = {}) {
 
   // API routes (base path /api, see the API contract)
   app.use('/api/health', healthRouter);
+  app.use('/api/admin', adminRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/items', itemsRouter);
   app.use('/api/labels', labelsRouter);

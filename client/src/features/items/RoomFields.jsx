@@ -4,11 +4,20 @@ import SelectWithAdd from '../../components/ui/SelectWithAdd.jsx';
 // after choosing a campus, Room after choosing a building. value: { campus, building, room }
 // (ids as text). Choosing a new campus clears the building and room, and so on.
 // Each list has "+ Add new …" at the top; onAddNew(kind) opens the matching pop-up (P4–P6).
+// readOnly (Edit form): all three lists are disabled; rooms are changed on the item page.
 function toOptions(list) {
   return list.map((entry) => ({ value: String(entry.id), label: entry.name }));
 }
 
-export default function RoomFields({ id, legend, value, onChange, onAddNew, campuses }) {
+export default function RoomFields({
+  id,
+  legend,
+  value,
+  onChange,
+  onAddNew,
+  campuses,
+  readOnly = false,
+}) {
   const campus = campuses.find((entry) => String(entry.id) === value.campus);
   const building = campus?.buildings.find((entry) => String(entry.id) === value.building);
 
@@ -22,6 +31,7 @@ export default function RoomFields({ id, legend, value, onChange, onAddNew, camp
           placeholder=""
           options={toOptions(campuses)}
           value={value.campus}
+          disabled={readOnly}
           addLabel="+ Add new campus"
           onAddNew={() => onAddNew('campus')}
           onChange={(next) => onChange({ campus: next, building: '', room: '' })}
@@ -32,7 +42,7 @@ export default function RoomFields({ id, legend, value, onChange, onAddNew, camp
           placeholder={campus ? '' : 'Choose campus'}
           options={toOptions(campus?.buildings ?? [])}
           value={value.building}
-          disabled={!campus}
+          disabled={readOnly || !campus}
           addLabel="+ Add new building"
           onAddNew={() => onAddNew('building')}
           onChange={(next) => onChange({ ...value, building: next, room: '' })}
@@ -43,7 +53,7 @@ export default function RoomFields({ id, legend, value, onChange, onAddNew, camp
           placeholder={building ? '' : 'Choose building'}
           options={toOptions(building?.rooms ?? [])}
           value={value.room}
-          disabled={!building}
+          disabled={readOnly || !building}
           addLabel="+ Add new room"
           onAddNew={() => onAddNew('room')}
           onChange={(next) => onChange({ ...value, room: next })}

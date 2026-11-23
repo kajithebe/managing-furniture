@@ -75,3 +75,54 @@ export function toCreateBody(form) {
     notes: form.notes.trim() || undefined,
   };
 }
+
+// Shown status (02) as text, for the read-only Status field of the Edit form.
+export const STATUS_LABELS = {
+  AVAILABLE: 'Available',
+  ON_LOAN: 'On loan',
+  NEEDS_REPAIR: 'Needs repair',
+  BROKEN: 'Broken',
+  IN_REPAIR: 'In repair',
+  DISPOSED: 'Disposed',
+};
+
+// A room from GET /api/items/:code → { campus, building, room } for RoomFields.
+function roomValue(room) {
+  return {
+    campus: String(room.building.campus.id),
+    building: String(room.building.id),
+    room: String(room.id),
+  };
+}
+
+const idText = (id) => (id ? String(id) : '');
+
+// The Edit form starts with the item's current values.
+export function itemToForm(item) {
+  return {
+    ...EMPTY_FORM,
+    categoryId: idText(item.categoryId),
+    name: item.name,
+    brandId: idText(item.brandId),
+    colourId: idText(item.colourId),
+    hasWheels: item.hasWheels,
+    wheelCount: item.hasWheels ? String(item.wheelCount) : '',
+    homeRoom: roomValue(item.homeRoom),
+    currentRoom: roomValue(item.currentRoom),
+    notes: item.notes ?? '',
+  };
+}
+
+// Body for PATCH /api/items/:code: the details only. An empty name is sent as "", so the
+// server falls back to the category name, as when adding.
+export function toUpdateBody(form) {
+  return {
+    categoryId: Number(form.categoryId),
+    name: form.name.trim(),
+    brandId: idOrNull(form.brandId),
+    colourId: idOrNull(form.colourId),
+    hasWheels: form.hasWheels,
+    wheelCount: form.hasWheels ? wholeNumber(form.wheelCount) : null,
+    notes: form.notes.trim() || null,
+  };
+}

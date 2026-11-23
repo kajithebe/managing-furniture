@@ -35,3 +35,9 @@ export function getNextCodes(params, options) {
   }
   return api.get(`/items/next-code?${search}`, options);
 }
+
+// M6 Edit: PATCH /api/items/:code → the item. Only details: category, name, brand, colour,
+// wheels and notes. The code never changes; status and rooms have their own actions (MF-29).
+export function updateItem(code, body, options) {
+  return api.patch(`/items/${encodeURIComponent(code)}`, body, options);
+}

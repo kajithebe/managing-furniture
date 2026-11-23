@@ -149,10 +149,27 @@ async function countItemsByStatus() {
     }));
 }
 
+// A status change is saved with the new condition at the start of the note, then the reason:
+// "NEEDS_REPAIR: Wobbly leg" (MF-29 format, agreed by the team on 23 Nov 2026). The dashboard
+// splits it, so the page can say "changed Chair MP-00123 to Needs repair" and show the reason.
+// A note in another format is kept whole, with no condition.
+const STATUS_NOTE = /^(GOOD|NEEDS_REPAIR|BROKEN|IN_REPAIR|DISPOSED):\s*([\s\S]*)$/;
+
+function splitNote(event) {
+  if (event.type === 'STATUS_CHANGED') {
+    const match = STATUS_NOTE.exec(event.note ?? '');
+    if (match) {
+      return { condition: match[1], note: match[2] || null };
+    }
+  }
+  return { condition: null, note: event.note };
+}
+
 // "Recent activity": the last 10 item history events, newest first, e.g.
-// "Mikko Laine approved Table MP-02210 → D751 · 10:12". ItemEvent has no relations for the user
-// and the rooms, so their names are read in two extra queries. The note is left out: it can hold
-// a borrower's reason, and the M1 line does not show it.
+// "Mikko Laine approved Table MP-02210 → D751 · 10:12", with the reason or note of each event
+// (the team agreed to show it on 23 Nov 2026). The route is for moderators and admins only.
+// ItemEvent has no relations for the user and the rooms, so their names are read in two extra
+// queries.
 async function loadRecentActivity() {
   const events = await prisma.itemEvent.findMany({
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -165,6 +182,7 @@ async function loadRecentActivity() {
       loanId: true,
       fromRoomId: true,
       toRoomId: true,
+      note: true,
       item: { select: { code: true, name: true } },
     },
   });
@@ -183,6 +201,7 @@ async function loadRecentActivity() {
     loanId: event.loanId,
     fromRoom: rooms.get(event.fromRoomId) ?? null,
     toRoom: rooms.get(event.toRoomId) ?? null,
+    ...splitNote(event),
   }));
 }
 

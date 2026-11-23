@@ -105,6 +105,7 @@ const approvedEvent = {
   loanId: 5,
   fromRoomId: D569.id,
   toRoomId: D751.id,
+  note: 'Fine for the group work',
   item: { code: 'MP-02210', name: 'Table' },
 };
 // An event without a user or rooms, e.g. from a job.
@@ -116,6 +117,7 @@ const overdueEvent = {
   loanId: 4,
   fromRoomId: null,
   toRoomId: null,
+  note: null,
   item: { code: 'MP-00126', name: 'Chair' },
 };
 
@@ -328,6 +330,8 @@ describe('GET /api/moderator/dashboard', () => {
         loanId: 5,
         fromRoom: D569,
         toRoom: D751,
+        condition: null,
+        note: 'Fine for the group work',
       },
       {
         id: 100,
@@ -338,6 +342,8 @@ describe('GET /api/moderator/dashboard', () => {
         loanId: 4,
         fromRoom: null,
         toRoom: null,
+        condition: null,
+        note: null,
       },
     ]);
     expect(prisma.itemEvent.findMany).toHaveBeenCalledWith(
@@ -346,7 +352,45 @@ describe('GET /api/moderator/dashboard', () => {
         take: 10,
       }),
     );
-    // The note can hold a borrower's reason; M1 does not show it.
-    expect(prisma.itemEvent.findMany.mock.calls[0][0].select).not.toHaveProperty('note');
+  });
+
+  it('splits a status change into the new condition and the reason', async () => {
+    const statusEvent = (id, note) => ({
+      ...overdueEvent,
+      id,
+      type: 'STATUS_CHANGED',
+      userId: mikko.id,
+      note,
+    });
+    prisma.itemEvent.findMany.mockResolvedValue([
+      // "Mikko Laine changed Chair MP-00126 to Needs repair · Wobbly leg"
+      statusEvent(3, 'NEEDS_REPAIR: Wobbly leg'),
+      statusEvent(2, 'BROKEN:'),
+      // Not in the agreed format: kept whole, no condition.
+      statusEvent(1, 'Old note without a condition'),
+    ]);
+    const res = await request(createApp())
+      .get('/api/moderator/dashboard')
+      .set('Cookie', loginAs('MODERATOR'));
+
+    expect(res.body.recentActivity.map(({ condition, note }) => ({ condition, note }))).toEqual([
+      { condition: 'NEEDS_REPAIR', note: 'Wobbly leg' },
+      { condition: 'BROKEN', note: null },
+      { condition: null, note: 'Old note without a condition' },
+    ]);
+  });
+
+  it('only splits the note of status changes', async () => {
+    prisma.itemEvent.findMany.mockResolvedValue([
+      { ...approvedEvent, note: 'BROKEN: this is a borrower reason' },
+    ]);
+    const res = await request(createApp())
+      .get('/api/moderator/dashboard')
+      .set('Cookie', loginAs('MODERATOR'));
+
+    expect(res.body.recentActivity[0]).toMatchObject({
+      condition: null,
+      note: 'BROKEN: this is a borrower reason',
+    });
   });
 });

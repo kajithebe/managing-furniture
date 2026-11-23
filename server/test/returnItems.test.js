@@ -129,6 +129,24 @@ describe('POST /api/loans/:id/return', () => {
     expect(prisma.loan.findFirst.mock.calls[0][0].where).toEqual({ id: 9, userId: 7 });
   });
 
+  it.each([
+    ['neither', { itemCodes: ['MP-00123'] }],
+    ['both', { roomQrToken: TOKEN, roomId: D569.id, itemCodes: ['MP-00123'] }],
+  ])('needs either roomQrToken or roomId, not %s', async (_, data) => {
+    const res = await post(data);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('S8 "Type the room instead": finds the room by roomId', async () => {
+    const res = await post({ roomId: D569.id, itemCodes: ['MP-00123'] });
+
+    expect(res.status).toBe(200);
+    expect(prisma.room.findUnique.mock.calls[0][0].where).toEqual({ id: D569.id });
+    expect(prisma.loanItem.updateMany).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses an unknown door QR', async () => {
     prisma.room.findUnique.mockResolvedValue(null);
     const res = await post({ roomQrToken: 'unknown-token', itemCodes: ['MP-00123'] });

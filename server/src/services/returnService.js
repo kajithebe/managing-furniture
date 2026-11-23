@@ -29,7 +29,7 @@ const returnFields = {
 
 // POST /api/loans/:id/return. Only the logged-in user's own loan: another user's loan is
 // "not found", so loan ids cannot be probed. The reply is the loan in the Loan shape (S9, S10).
-export async function returnItems(userId, loanId, { roomQrToken, itemCodes }) {
+export async function returnItems(userId, loanId, { roomQrToken, roomId, itemCodes }) {
   const returnedAt = new Date();
 
   // One transaction: the items, their moves, the history and closing the loan are saved
@@ -40,8 +40,9 @@ export async function returnItems(userId, loanId, { roomQrToken, itemCodes }) {
       throw new AppError(404, 'NOT_FOUND', 'Not found.');
     }
 
+    // The scanned door QR, or the room typed on S8 ("Type the room instead").
     const room = await tx.room.findUnique({
-      where: { qrToken: roomQrToken },
+      where: roomQrToken ? { qrToken: roomQrToken } : { id: roomId },
       select: { id: true, name: true },
     });
     if (!room) {

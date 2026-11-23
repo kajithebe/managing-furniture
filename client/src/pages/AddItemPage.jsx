@@ -8,6 +8,7 @@ import Checkbox from '../components/ui/Checkbox.jsx';
 import Input from '../components/ui/Input.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import Select from '../components/ui/Select.jsx';
+import NextCodePreview from '../features/items/NextCodePreview.jsx';
 import RoomFields from '../features/items/RoomFields.jsx';
 import {
   CONDITIONS,
@@ -87,6 +88,8 @@ export default function AddItemPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [created, setCreated] = useState(null);
+  // Goes up after every save, so the code preview loads the next free codes again.
+  const [saveCount, setSaveCount] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,6 +118,7 @@ export default function AddItemPage() {
     setSaveError('');
     try {
       setCreated(await createItems(toCreateBody(form)));
+      setSaveCount((current) => current + 1);
     } catch (error) {
       setSaveError(error.message);
     } finally {
@@ -152,7 +156,17 @@ export default function AddItemPage() {
   return (
     <form onSubmit={save} noValidate aria-busy={!lookups}>
       <Breadcrumb />
-      <h1 className="mt-4 text-[28px] font-semibold text-ink">Add item</h1>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <h1 className="text-[28px] font-semibold text-ink">Add item</h1>
+        <NextCodePreview
+          quantity={quantity}
+          categoryId={form.categoryId}
+          homeRoomId={form.homeRoom.room}
+          brandId={form.brandId}
+          colourId={form.colourId}
+          version={saveCount}
+        />
+      </div>
 
       <div className="mt-6 grid grid-cols-2 items-start gap-6">
         <Card className="flex flex-col gap-4">

@@ -25,3 +25,13 @@ export function listItems(params, options) {
 export function createItems(body, options) {
   return api.post('/items', body, options);
 }
+
+// M6 code preview: GET /api/items/next-code → { first, last } (the same code when quantity is 1).
+// The other values are for the code scheme (MF-21): campus, category … can be part of the code.
+export function getNextCodes(params, options) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) search.set(key, String(value));
+  }
+  return api.get(`/items/next-code?${search}`, options);
+}

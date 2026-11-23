@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { createItems } from '../api/items.js';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { createItems, getItem, updateItem } from '../api/items.js';
 import { getLookups } from '../api/lookups.js';
 import Button from '../components/ui/Button.jsx';
 import Card from '../components/ui/Card.jsx';
@@ -16,14 +16,20 @@ import { addToLookups, roomValueWith } from '../features/items/lookupsUpdate.js'
 import {
   CONDITIONS,
   EMPTY_FORM,
+  itemToForm,
   MAX_QUANTITY,
+  STATUS_LABELS,
   toCreateBody,
+  toUpdateBody,
   validateItem,
   validQuantity,
 } from '../features/items/itemForm.js';
 
-// M6 Add item (moderators and admins): one item, or up to 200 identical items with
-// consecutive codes. After saving, "Items added" offers Print labels and Add more items.
+// M6 Add item and Edit item (moderators and admins).
+// /mod/items/new: one item, or up to 200 identical items with consecutive codes. After
+//   saving, "Items added" offers Print labels and Add more items.
+// /mod/items/:code/edit: the same form without Quantity. The code never changes; status and
+//   rooms are read-only here, because they change on the item page with a reason (MF-29).
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 const fieldClasses = `w-full rounded border border-line bg-surface px-3 text-base text-ink ${focusRing}`;
@@ -42,13 +48,24 @@ const KIND_NAMES = {
   room: 'Room',
 };
 
-function Breadcrumb() {
+// "Items / Add item" or "Items / MP-00123 / Edit".
+function Breadcrumb({ code }) {
   return (
     <nav aria-label="Breadcrumb" className="text-[13px] text-brand">
       <Link to="/mod/items" className={focusRing}>
         Items
       </Link>{' '}
-      / Add item
+      /{' '}
+      {code ? (
+        <>
+          <Link to={`/mod/items/${encodeURIComponent(code)}`} className={`font-mono ${focusRing}`}>
+            {code}
+          </Link>{' '}
+          / Edit
+        </>
+      ) : (
+        'Add item'
+      )}
     </nav>
   );
 }
@@ -90,8 +107,15 @@ function ItemsAdded({ items, onAddMore }) {
   );
 }
 
-export default function AddItemPage() {
+export default function ItemFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set on /mod/items/:code/edit, missing on /mod/items/new.
+  const { code } = useParams();
+  const editing = Boolean(code);
+  // Edit: the item as loaded, for the title and the read-only status.
+  const [item, setItem] = useState(null);
+  const [itemError, setItemError] = useState('');
   const [lookups, setLookups] = useState(null);
   const [lookupsFailed, setLookupsFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -121,7 +145,24 @@ export default function AddItemPage() {
     return () => controller.abort();
   }, [attempt]);
 
-  const errors = validateItem(form);
+  // Edit: load the item and start the form with its values.
+  useEffect(() => {
+    if (!editing) return undefined;
+    const controller = new AbortController();
+    getItem(code, { signal: controller.signal })
+      .then((data) => {
+        setItem(data);
+        setForm(itemToForm(data));
+        setItemError('');
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') return;
+        setItemError(error.status === 404 ? error.message : "Couldn't load this item. Try again.");
+      });
+    return () => controller.abort();
+  }, [editing, code, attempt]);
+
+  const errors = validateItem(form, { withQuantity: !editing });
   const valid = Object.keys(errors).length === 0;
   const quantity = validQuantity(form.quantity) ?? 1;
   const shown = (field) => (touched[field] ? errors[field] : undefined);
@@ -169,6 +210,11 @@ export default function AddItemPage() {
     setSaving(true);
     setSaveError('');
     try {
+      if (editing) {
+        await updateItem(code, toUpdateBody(form));
+        goBack();
+        return;
+      }
       setCreated(await createItems(toCreateBody(form)));
       setSaveCount((current) => current + 1);
     } catch (error) {
@@ -176,6 +222,12 @@ export default function AddItemPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Back to the page the user came from; the Items list when the page was opened directly.
+  function goBack() {
+    if (location.key === 'default') navigate('/mod/items');
+    else navigate(-1);
   }
 
   function addMore() {
@@ -186,17 +238,28 @@ export default function AddItemPage() {
 
   if (created) return <ItemsAdded items={created} onAddMore={addMore} />;
 
-  if (lookupsFailed) {
+  if (lookupsFailed || itemError) {
     return (
       <>
-        <Breadcrumb />
-        <h1 className="mt-4 text-[28px] font-semibold text-ink">Add item</h1>
+        <Breadcrumb code={code} />
+        <h1 className="mt-4 text-[28px] font-semibold text-ink">
+          {editing ? 'Edit item' : 'Add item'}
+        </h1>
         <LoadError
           className="mt-6"
-          message="Couldn't load the lists for this form. Try again."
-          text="Your entries are kept."
+          message={itemError || "Couldn't load the lists for this form. Try again."}
+          text={editing ? 'Nothing has been changed.' : 'Your entries are kept.'}
           onRetry={() => setAttempt((current) => current + 1)}
         />
+      </>
+    );
+  }
+
+  if (editing && !item) {
+    return (
+      <>
+        <Breadcrumb code={code} />
+        <p className="mt-4 text-sm text-muted">Loading…</p>
       </>
     );
   }
@@ -207,17 +270,31 @@ export default function AddItemPage() {
 
   return (
     <form onSubmit={save} noValidate aria-busy={!lookups}>
-      <Breadcrumb />
+      <Breadcrumb code={code} />
       <div className="mt-4 flex items-start justify-between gap-4">
-        <h1 className="text-[28px] font-semibold text-ink">Add item</h1>
-        <NextCodePreview
-          quantity={quantity}
-          categoryId={form.categoryId}
-          homeRoomId={form.homeRoom.room}
-          brandId={form.brandId}
-          colourId={form.colourId}
-          version={saveCount}
-        />
+        {editing ? (
+          <>
+            <h1 className="text-[28px] font-semibold text-ink">
+              Edit {item.name} <span className="font-mono font-normal">{item.code}</span>
+            </h1>
+            <div>
+              <p className="font-mono text-base text-ink">{item.code}</p>
+              <p className="mt-1 text-xs text-muted">Asset codes never change</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="text-[28px] font-semibold text-ink">Add item</h1>
+            <NextCodePreview
+              quantity={quantity}
+              categoryId={form.categoryId}
+              homeRoomId={form.homeRoom.room}
+              brandId={form.brandId}
+              colourId={form.colourId}
+              version={saveCount}
+            />
+          </>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-2 items-start gap-6">
@@ -292,7 +369,16 @@ export default function AddItemPage() {
               />
             )}
           </Checkbox>
-          {roomsIncomplete && (
+          {editing && (
+            <p className="rounded-card bg-brand-tint px-4 py-3 text-sm text-ink">
+              <span aria-hidden="true" className="font-semibold text-brand">
+                i{' '}
+              </span>
+              {/* Design text + "or rooms" (rooms are read-only too; needs team agreement). */}
+              Asset codes never change. Use the item page to change status or rooms.
+            </p>
+          )}
+          {!editing && roomsIncomplete && (
             <p className="text-xs text-muted">
               Building is enabled after choosing a campus. Room is enabled after choosing a
               building.
@@ -306,6 +392,7 @@ export default function AddItemPage() {
             legend="Home room"
             campuses={campuses}
             value={form.homeRoom}
+            readOnly={editing}
             onChange={(value) => change('homeRoom', value)}
             onAddNew={(kind) => openAdd(kind, 'homeRoom')}
           />
@@ -315,52 +402,69 @@ export default function AddItemPage() {
               legend="Current room"
               campuses={campuses}
               value={form.currentRoom}
+              readOnly={editing}
               onChange={(value) => change('currentRoom', value)}
               onAddNew={(kind) => openAdd(kind, 'currentRoom')}
             />
-            <button
-              type="button"
-              onClick={() => change('currentRoom', form.homeRoom)}
-              className={`mt-1 min-h-11 rounded text-[13px] text-brand hover:underline ${focusRing}`}
-            >
-              Same as home room
-            </button>
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => change('currentRoom', form.homeRoom)}
+                className={`mt-1 min-h-11 rounded text-[13px] text-brand hover:underline ${focusRing}`}
+              >
+                Same as home room
+              </button>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="item-status" className="text-sm font-semibold text-ink">
               Status *
             </label>
-            <select
-              id="item-status"
-              value={form.condition}
-              onChange={(event) => change('condition', event.target.value)}
-              className={`h-11 ${fieldClasses}`}
-            >
-              {CONDITIONS.map((condition) => (
-                <option key={condition.value} value={condition.value}>
-                  {condition.label}
-                </option>
-              ))}
-            </select>
+            {editing ? (
+              // Read-only: the status is changed on the item page with a reason (MF-29).
+              <select
+                id="item-status"
+                disabled
+                value={item.status}
+                className={`h-11 disabled:bg-subtle disabled:text-muted ${fieldClasses}`}
+              >
+                <option value={item.status}>{STATUS_LABELS[item.status]}</option>
+              </select>
+            ) : (
+              <select
+                id="item-status"
+                value={form.condition}
+                onChange={(event) => change('condition', event.target.value)}
+                className={`h-11 ${fieldClasses}`}
+              >
+                {CONDITIONS.map((condition) => (
+                  <option key={condition.value} value={condition.value}>
+                    {condition.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          <Input
-            id="item-quantity"
-            label="Quantity"
-            required
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={MAX_QUANTITY}
-            hint={
-              shown('quantity')
-                ? undefined
-                : 'Creates this many identical items with consecutive codes.'
-            }
-            value={form.quantity}
-            error={shown('quantity')}
-            onChange={(event) => change('quantity', event.target.value)}
-            onBlur={touch('quantity')}
-          />
+          {!editing && (
+            <Input
+              id="item-quantity"
+              label="Quantity"
+              required
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_QUANTITY}
+              hint={
+                shown('quantity')
+                  ? undefined
+                  : 'Creates this many identical items with consecutive codes.'
+              }
+              value={form.quantity}
+              error={shown('quantity')}
+              onChange={(event) => change('quantity', event.target.value)}
+              onBlur={touch('quantity')}
+            />
+          )}
           <div className="flex flex-col gap-1">
             <label htmlFor="item-notes" className="text-sm font-semibold text-ink">
               Notes
@@ -383,9 +487,15 @@ export default function AddItemPage() {
 
           <div className="flex gap-3">
             <Button type="submit" disabled={!valid || saving}>
-              {saving ? 'Saving…' : quantity > 1 ? `Save ${quantity} items` : 'Save item'}
+              {saving
+                ? 'Saving…'
+                : editing
+                  ? 'Save changes'
+                  : quantity > 1
+                    ? `Save ${quantity} items`
+                    : 'Save item'}
             </Button>
-            <Button variant="secondary" onClick={() => navigate('/mod/items')}>
+            <Button variant="secondary" onClick={goBack}>
               Cancel
             </Button>
           </div>

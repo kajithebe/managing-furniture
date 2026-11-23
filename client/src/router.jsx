@@ -3,9 +3,9 @@ import DesktopLayout from './components/layout/DesktopLayout.jsx';
 import PhoneLayout from './components/layout/PhoneLayout.jsx';
 import HomeRedirect from './features/auth/HomeRedirect.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
-import AddItemPage from './pages/AddItemPage.jsx';
 import BorrowPage from './pages/BorrowPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import ItemFormPage from './pages/ItemFormPage.jsx';
 import ItemPage from './pages/ItemPage.jsx';
 import ItemsPage from './pages/ItemsPage.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
@@ -66,8 +66,9 @@ export const router = createBrowserRouter([
           { path: '/mod/requests', element: <RequestsPage /> },
           { path: '/mod/overdue', element: placeholder('Not yet returned') },
           { path: '/mod/items', element: <ItemsPage /> },
-          { path: '/mod/items/new', element: <AddItemPage /> },
+          { path: '/mod/items/new', element: <ItemFormPage /> },
           { path: '/mod/items/:code', element: placeholder('Item') },
+          { path: '/mod/items/:code/edit', element: <ItemFormPage /> },
           { path: '/mod/labels', element: <LabelsPage /> },
           { path: '/mod/reports/:report', element: <ReportsPage /> },
           { path: '/mod/profile', element: <ProfilePage desktop /> },

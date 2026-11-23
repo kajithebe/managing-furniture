@@ -48,7 +48,7 @@ export function validateItem(form, { withQuantity = true } = {}) {
     const wheels = wholeNumber(form.wheelCount);
     if (!(wheels >= 1 && wheels <= 12)) errors.wheelCount = 'Enter the number of wheels';
   }
-  // Not in the design (Save just stays disabled); text needs team agreement.
+  // Not shown on M6: the design only keeps Save disabled until both rooms are chosen.
   if (!form.homeRoom.room) errors.homeRoom = 'Choose a room';
   if (!form.currentRoom.room) errors.currentRoom = 'Choose a room';
   if (withQuantity && validQuantity(form.quantity) === null) {

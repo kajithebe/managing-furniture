@@ -7,9 +7,12 @@ import Card from '../components/ui/Card.jsx';
 import Checkbox from '../components/ui/Checkbox.jsx';
 import Input from '../components/ui/Input.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
-import Select from '../components/ui/Select.jsx';
+import SelectWithAdd from '../components/ui/SelectWithAdd.jsx';
+import Toast from '../components/ui/Toast.jsx';
+import AddEntryDialog from '../features/items/AddEntryDialog.jsx';
 import NextCodePreview from '../features/items/NextCodePreview.jsx';
 import RoomFields from '../features/items/RoomFields.jsx';
+import { addToLookups, roomValueWith } from '../features/items/lookupsUpdate.js';
 import {
   CONDITIONS,
   EMPTY_FORM,
@@ -28,6 +31,16 @@ const fieldClasses = `w-full rounded border border-line bg-surface px-3 text-bas
 function toOptions(list) {
   return list.map((entry) => ({ value: String(entry.id), label: entry.name }));
 }
+
+// Toast text after "+ Add new": "Room D575 added".
+const KIND_NAMES = {
+  category: 'Category',
+  brand: 'Brand',
+  colour: 'Colour',
+  campus: 'Campus',
+  building: 'Building',
+  room: 'Room',
+};
 
 function Breadcrumb() {
   return (
@@ -88,6 +101,10 @@ export default function AddItemPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [created, setCreated] = useState(null);
+  // The open "+ Add new" pop-up: { kind, field, parent } or null. field is the form field
+  // that gets the new entry: categoryId, brandId, colourId, homeRoom or currentRoom.
+  const [adding, setAdding] = useState(null);
+  const [toast, setToast] = useState('');
   // Goes up after every save, so the code preview loads the next free codes again.
   const [saveCount, setSaveCount] = useState(0);
 
@@ -111,8 +128,43 @@ export default function AddItemPage() {
   const touch = (field) => () => setTouched((current) => ({ ...current, [field]: true }));
   const change = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
+  // Opens P1–P6. Building and room pop-ups show where the entry is added (P5, P6).
+  function openAdd(kind, field) {
+    let parent = null;
+    if (kind === 'building' || kind === 'room') {
+      const value = form[field];
+      const campus = lookups.campuses.find((entry) => String(entry.id) === value.campus);
+      const building = campus?.buildings.find((entry) => String(entry.id) === value.building);
+      parent =
+        kind === 'building'
+          ? { id: campus.id, text: `Campus: ${campus.name}` }
+          : { id: building.id, text: `${campus.name} · Building ${building.name}` };
+    }
+    setAdding({ kind, field, parent });
+  }
+
+  // The new (or existing, "Use Chair") entry is added to the lists and selected.
+  // All other form values stay as they were.
+  function selectEntry(entry, isNew) {
+    const { kind, field } = adding;
+    setLookups((current) => addToLookups(current, kind, entry));
+    setForm((current) => ({
+      ...current,
+      // homeRoom and currentRoom hold { campus, building, room }, the others one id.
+      [field]:
+        typeof current[field] === 'object'
+          ? roomValueWith(current[field], kind, entry)
+          : String(entry.id),
+    }));
+    if (isNew) setToast(`${KIND_NAMES[kind]} ${entry.name} added`);
+    setAdding(null);
+  }
+
   async function save(event) {
     event.preventDefault();
+    // React passes events from a portal up to its parents, so a submit inside the
+    // "+ Add new" pop-up (Modal) also arrives here. Only this form's own submit saves.
+    if (event.target !== event.currentTarget) return;
     if (!valid || saving) return;
     setSaving(true);
     setSaveError('');
@@ -171,17 +223,21 @@ export default function AddItemPage() {
       <div className="mt-6 grid grid-cols-2 items-start gap-6">
         <Card className="flex flex-col gap-4">
           <h2 className="text-base font-semibold text-ink">Item details</h2>
-          <Select
-            id="item-category"
-            label="Category"
-            required
-            placeholder=""
-            options={toOptions(lookups?.categories ?? [])}
-            value={form.categoryId}
-            error={shown('categoryId')}
-            onChange={(event) => change('categoryId', event.target.value)}
-            onBlur={touch('categoryId')}
-          />
+          {/* onBlur on the wrapper: SelectWithAdd has no onBlur of its own. */}
+          <div onBlur={touch('categoryId')}>
+            <SelectWithAdd
+              id="item-category"
+              label="Category"
+              required
+              placeholder=""
+              options={toOptions(lookups?.categories ?? [])}
+              value={form.categoryId}
+              error={shown('categoryId')}
+              addLabel="+ Add new category"
+              onAddNew={() => openAdd('category', 'categoryId')}
+              onChange={(value) => change('categoryId', value)}
+            />
+          </div>
           <Input
             id="item-name"
             label="Name / model"
@@ -192,21 +248,25 @@ export default function AddItemPage() {
             onChange={(event) => change('name', event.target.value)}
           />
           <div className="grid grid-cols-2 gap-4">
-            <Select
+            <SelectWithAdd
               id="item-brand"
               label="Brand"
               placeholder=""
               options={toOptions(lookups?.brands ?? [])}
               value={form.brandId}
-              onChange={(event) => change('brandId', event.target.value)}
+              addLabel="+ Add new brand"
+              onAddNew={() => openAdd('brand', 'brandId')}
+              onChange={(value) => change('brandId', value)}
             />
-            <Select
+            <SelectWithAdd
               id="item-colour"
               label="Colour"
               placeholder=""
               options={toOptions(lookups?.colours ?? [])}
               value={form.colourId}
-              onChange={(event) => change('colourId', event.target.value)}
+              addLabel="+ Add new colour"
+              onAddNew={() => openAdd('colour', 'colourId')}
+              onChange={(value) => change('colourId', value)}
             />
           </div>
           <Checkbox
@@ -246,9 +306,8 @@ export default function AddItemPage() {
             legend="Home room"
             campuses={campuses}
             value={form.homeRoom}
-            error={shown('homeRoom')}
             onChange={(value) => change('homeRoom', value)}
-            onBlur={touch('homeRoom')}
+            onAddNew={(kind) => openAdd(kind, 'homeRoom')}
           />
           <div>
             <RoomFields
@@ -256,9 +315,8 @@ export default function AddItemPage() {
               legend="Current room"
               campuses={campuses}
               value={form.currentRoom}
-              error={shown('currentRoom')}
               onChange={(value) => change('currentRoom', value)}
-              onBlur={touch('currentRoom')}
+              onAddNew={(kind) => openAdd(kind, 'currentRoom')}
             />
             <button
               type="button"
@@ -331,8 +389,19 @@ export default function AddItemPage() {
               Cancel
             </Button>
           </div>
+          <Toast message={toast} onDismiss={() => setToast('')} />
         </Card>
       </div>
+
+      {adding && (
+        <AddEntryDialog
+          kind={adding.kind}
+          parent={adding.parent}
+          onAdded={(entry) => selectEntry(entry, true)}
+          onUse={(entry) => selectEntry(entry, false)}
+          onClose={() => setAdding(null)}
+        />
+      )}
     </form>
   );
 }

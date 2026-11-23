@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import Table from '../../components/ui/Table.jsx';
 import DashboardPanel from './DashboardPanel.jsx';
+import SortableTable from './SortableTable.jsx';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 
@@ -17,12 +17,14 @@ const STATUS_COLUMNS = [
   { key: 'disposed', header: 'Disposed' },
 ];
 
-// M1 "Items by status": one row per category. The category opens the Items list for it.
+// M1 "Items by status": one row per category, in category order (from the API). The headers
+// sort the rows in the browser. The category opens the Items list for it.
 // TODO(MF-28): the Items page reads ?category= from the URL (needs team agreement with Abhinav).
 const columns = [
   {
     key: 'category',
     header: 'Category',
+    sortValue: (row) => row.category.name,
     render: (row) => (
       <Link
         to={`/mod/items?category=${encodeURIComponent(row.category.id)}`}
@@ -34,6 +36,7 @@ const columns = [
   },
   ...STATUS_COLUMNS.map((column) => ({
     ...column,
+    sortValue: (row) => row[column.key],
     render: (row) => numberFormat.format(row[column.key]),
   })),
 ];
@@ -41,7 +44,7 @@ const columns = [
 export default function ItemsByStatusPanel({ rows }) {
   return (
     <DashboardPanel title="Items by status">
-      <Table
+      <SortableTable
         columns={columns}
         // The Table needs an id per row: the category's id.
         rows={rows.map((row) => ({ ...row, id: row.category.id }))}

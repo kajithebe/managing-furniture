@@ -146,3 +146,96 @@ export async function createUser(actorId, { email, name, role }) {
     throw err;
   }
 }
+
+// A2 safety rules (02 › User safety rules). The wording is the A2 notes.
+const ownRole = () => new AppError(409, 'OWN_ROLE', "You can't change your own role");
+const ownStatus = () => new AppError(409, 'OWN_STATUS', "You can't deactivate yourself");
+const lastAdmin = () => new AppError(409, 'LAST_ADMIN', 'At least one active admin is needed');
+
+// The admin count and the change must not interleave with another admin doing the same: with
+// Serializable isolation PostgreSQL refuses one of two such transactions (Prisma error P2034),
+// and the retry then sees the other change and gives LAST_ADMIN.
+const MAX_TRIES = 3;
+
+async function serializable(work) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(work, { isolationLevel: 'Serializable' });
+    } catch (err) {
+      if (err.code !== 'P2034' || attempt === MAX_TRIES) {
+        throw err;
+      }
+    }
+  }
+}
+
+// PATCH /api/admin/users/:id (A2 panel, P15 Change role, P16 Deactivate, Reactivate).
+// Users are never deleted. A deactivated user's next request gets 401, because requireAuth
+// reads `active` on every request. Each change gets its own AuditLog row.
+export async function updateUser(actorId, userId, { role, active }) {
+  const user = await serializable(async (tx) => {
+    const target = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, active: true },
+    });
+    if (!target) {
+      throw new AppError(404, 'NOT_FOUND', 'Not found.');
+    }
+
+    const roleChanges = role !== undefined && role !== target.role;
+    const activeChanges = active !== undefined && active !== target.active;
+
+    if (target.id === actorId) {
+      if (roleChanges) {
+        throw ownRole();
+      }
+      if (activeChanges) {
+        throw ownStatus();
+      }
+    }
+
+    // Taking away an active admin: another active admin must remain.
+    const losesAdmin =
+      target.role === 'ADMIN' &&
+      target.active &&
+      ((roleChanges && role !== 'ADMIN') || (activeChanges && !active));
+    if (losesAdmin) {
+      const otherAdmins = await tx.user.count({
+        where: { role: 'ADMIN', active: true, id: { not: target.id } },
+      });
+      if (otherAdmins === 0) {
+        throw lastAdmin();
+      }
+    }
+
+    const updated = await tx.user.update({
+      where: { id: target.id },
+      data: {
+        ...(roleChanges && { role }),
+        ...(activeChanges && { active }),
+      },
+      select: userRowFields,
+    });
+
+    const entry = { actorId, entity: 'User', entityId: target.id };
+    if (roleChanges) {
+      await logChange(tx, {
+        ...entry,
+        action: 'role_change',
+        before: { role: target.role },
+        after: { role },
+      });
+    }
+    if (activeChanges) {
+      await logChange(tx, {
+        ...entry,
+        action: active ? 'reactivate' : 'deactivate',
+        before: { active: target.active },
+        after: { active },
+      });
+    }
+    return updated;
+  });
+
+  return toRow(user);
+}

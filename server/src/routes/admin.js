@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { USER_SORT_COLUMNS, createUser, listUsers } from '../services/userService.js';
+import { USER_SORT_COLUMNS, createUser, listUsers, updateUser } from '../services/userService.js';
 
 export const adminRouter = Router();
 
@@ -44,4 +44,24 @@ const createUserBody = z.object({
 adminRouter.post('/users', async (req, res) => {
   const body = createUserBody.parse(req.body ?? {});
   res.status(201).json(await createUser(req.user.id, body));
+});
+
+const idParams = z.object({ id: z.coerce.number().int().positive() });
+
+// A2 panel: Role (P15 Change role) and Status (P16 Deactivate, Reactivate).
+// At least one of them; unknown fields are dropped, so name and email cannot be changed here.
+const updateUserBody = z
+  .object({
+    role: z.enum(['USER', 'MODERATOR', 'ADMIN']).optional(),
+    active: z.boolean().optional(),
+  })
+  .refine((body) => body.role !== undefined || body.active !== undefined, {
+    message: 'Send role or active',
+  });
+
+// PATCH /api/admin/users/:id → the updated row (same shape as the list)
+adminRouter.patch('/users/:id', async (req, res) => {
+  const { id } = idParams.parse(req.params);
+  const changes = updateUserBody.parse(req.body ?? {});
+  res.json(await updateUser(req.user.id, id, changes));
 });

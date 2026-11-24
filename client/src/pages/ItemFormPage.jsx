@@ -29,8 +29,9 @@ import {
 // M6 Add item and Edit item (moderators and admins).
 // /mod/items/new: one item, or up to 200 identical items with consecutive codes. After
 //   saving, "Items added" offers Print labels and Add more items.
-// /mod/items/:code/edit: the same form without Quantity. The code never changes; status and
-//   rooms are read-only here, because they change on the item page with a reason (MF-29).
+// /mod/items/:code/edit: the same form without Quantity. The code never changes; Status is
+//   read-only here, because it changes on the item page with a reason (MF-29). Both rooms can
+//   be changed (02 › Edit item, decided 24 Nov 2026).
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 const fieldClasses = `w-full rounded border border-line bg-surface px-3 text-base text-ink ${focusRing}`;
@@ -387,11 +388,10 @@ export default function ItemFormPage() {
               <span aria-hidden="true" className="font-semibold text-brand">
                 i{' '}
               </span>
-              {/* Design text + "or rooms" (rooms are read-only too; needs team agreement). */}
-              Asset codes never change. Use the item page to change status or rooms.
+              Asset codes never change. Use the item page to change status.
             </p>
           )}
-          {!editing && roomsIncomplete && (
+          {roomsIncomplete && (
             <p className="text-xs text-muted">
               Building is enabled after choosing a campus. Room is enabled after choosing a
               building.
@@ -405,7 +405,6 @@ export default function ItemFormPage() {
             legend="Home room"
             campuses={campuses}
             value={form.homeRoom}
-            readOnly={editing}
             onChange={(value) => change('homeRoom', value)}
             onAddNew={(kind) => openAdd(kind, 'homeRoom')}
           />
@@ -415,7 +414,6 @@ export default function ItemFormPage() {
               legend="Current room"
               campuses={campuses}
               value={form.currentRoom}
-              readOnly={editing}
               onChange={(value) => change('currentRoom', value)}
               onAddNew={(kind) => openAdd(kind, 'currentRoom')}
             />

@@ -114,8 +114,9 @@ export function itemToForm(item) {
   };
 }
 
-// Body for PATCH /api/items/:code: the details only. An empty name is sent as "", so the
-// server falls back to the category name, as when adding.
+// Body for PATCH /api/items/:code: the details and both rooms (02 › Edit item). An empty name
+// is sent as "", so the server falls back to the category name, as when adding. The rooms are
+// always sent; the server only writes an event for a room that really changed.
 export function toUpdateBody(form) {
   return {
     categoryId: Number(form.categoryId),
@@ -125,5 +126,7 @@ export function toUpdateBody(form) {
     hasWheels: form.hasWheels,
     wheelCount: form.hasWheels ? wholeNumber(form.wheelCount) : null,
     notes: form.notes.trim() || null,
+    homeRoomId: Number(form.homeRoom.room),
+    currentRoomId: Number(form.currentRoom.room),
   };
 }

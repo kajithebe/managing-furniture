@@ -9,6 +9,7 @@ import {
   listDecidedToday,
   listWaitingRequests,
 } from '../services/approvalService.js';
+import { getDashboard } from '../services/dashboardService.js';
 
 export const moderatorRouter = Router();
 
@@ -55,3 +56,8 @@ for (const [action, approve] of [
     res.json(await decideLoanItem(id, req.user, { approve, note }));
   });
 }
+
+// GET /api/moderator/dashboard – M1: tiles, lists, items by status, recent activity in one call.
+moderatorRouter.get('/dashboard', async (req, res) => {
+  res.json(await getDashboard());
+});

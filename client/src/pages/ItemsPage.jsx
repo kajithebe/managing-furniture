@@ -7,6 +7,7 @@ import Button from '../components/ui/Button.jsx';
 import Input from '../components/ui/Input.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import Select from '../components/ui/Select.jsx';
+import SortButton from '../components/ui/SortButton.jsx';
 import Table from '../components/ui/Table.jsx';
 import Toggle from '../components/ui/Toggle.jsx';
 import Pagination from '../features/reports/Pagination.jsx';
@@ -76,25 +77,6 @@ function SelectBox({ label, checked, indeterminate = false, onChange }) {
         className={`h-[18px] w-[18px] cursor-pointer accent-brand ${focusRing}`}
       />
     </label>
-  );
-}
-
-// Column header with the sort arrow: ↕ not sorted, ↑ A–Z, ↓ Z–A.
-function SortButton({ column, sort, onSort }) {
-  const active = sort.column === column.key;
-  const arrow = active ? (sort.order === 'asc' ? '↑' : '↓') : '↕';
-  const state = active ? (sort.order === 'asc' ? ', sorted A to Z' : ', sorted Z to A') : '';
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(column.key)}
-      aria-label={`Sort by ${column.label}${state}`}
-      className={`inline-flex items-center gap-1 rounded ${focusRing} ${active ? 'text-ink' : ''}`}
-    >
-      {column.label}
-      <span aria-hidden="true">{arrow}</span>
-    </button>
   );
 }
 

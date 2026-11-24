@@ -15,6 +15,8 @@ import Pagination from '../features/reports/Pagination.jsx';
 // M5 Items (moderators and admins): search, filters, "Show disposed items", a sortable table
 // and paging (25 per page). Selected rows open the Print labels page (M8).
 const PAGE_SIZE = 25;
+// The Labels page (M8) prints at most 200 labels at a time (02 › GET /labels/items).
+const MAX_SELECTED = 200;
 const SEARCH_DELAY_MS = 300;
 const NO_FILTERS = { category: '', campus: '', building: '', room: '', status: '' };
 
@@ -75,19 +77,22 @@ function toOptions(list) {
 
 // Row and "select all" checkbox: the 18 px box from 03 inside a 44 px tap area. The table has
 // no room for a visible label, so the checkbox gets an aria-label instead.
-function SelectBox({ label, checked, indeterminate = false, onChange }) {
+function SelectBox({ label, checked, indeterminate = false, disabled = false, onChange }) {
   return (
-    <label className="-m-3 inline-flex h-11 w-11 cursor-pointer items-center justify-center">
+    <label
+      className={`-m-3 inline-flex h-11 w-11 items-center justify-center ${disabled ? '' : 'cursor-pointer'}`}
+    >
       <input
         type="checkbox"
         aria-label={label}
         checked={checked}
+        disabled={disabled}
         // "Some rows on this page are selected": shown as a dash in the header box.
         ref={(element) => {
           if (element) element.indeterminate = indeterminate;
         }}
         onChange={(event) => onChange(event.target.checked)}
-        className={`h-[18px] w-[18px] cursor-pointer accent-brand ${focusRing}`}
+        className={`h-[18px] w-[18px] accent-brand disabled:cursor-not-allowed ${disabled ? '' : 'cursor-pointer'} ${focusRing}`}
       />
     </label>
   );
@@ -215,18 +220,24 @@ export default function ItemsPage() {
   const pageSelected = pageCodes.filter((code) => selected.includes(code));
   const allOnPage = pageCodes.length > 0 && pageSelected.length === pageCodes.length;
 
+  // The selection never goes past MAX_SELECTED: a row is only added while there is space,
+  // and "select all" adds the rows of this page that still fit, in table order.
+  const selectionFull = selected.length >= MAX_SELECTED;
+
   function selectRow(code, checked) {
-    setSelected((current) =>
-      checked ? [...current, code] : current.filter((value) => value !== code),
-    );
+    setSelected((current) => {
+      if (!checked) return current.filter((value) => value !== code);
+      return current.length < MAX_SELECTED ? [...current, code] : current;
+    });
   }
 
   function selectPage(checked) {
-    setSelected((current) =>
-      checked
-        ? [...current, ...pageCodes.filter((code) => !current.includes(code))]
-        : current.filter((code) => !pageCodes.includes(code)),
-    );
+    setSelected((current) => {
+      if (!checked) return current.filter((code) => !pageCodes.includes(code));
+      const space = MAX_SELECTED - current.length;
+      const added = pageCodes.filter((code) => !current.includes(code)).slice(0, space);
+      return [...current, ...added];
+    });
   }
 
   // M8 reads the selection from the address (see LabelsPage.jsx).
@@ -274,6 +285,8 @@ export default function ItemsPage() {
         <SelectBox
           label={`Select ${item.code}`}
           checked={selected.includes(item.code)}
+          // A full selection only lets rows be unticked.
+          disabled={selectionFull && !selected.includes(item.code)}
           onChange={(checked) => selectRow(item.code, checked)}
         />
       ),
@@ -356,6 +369,9 @@ export default function ItemsPage() {
           <button type="button" onClick={() => setSelected([])} className={linkButton}>
             Clear selection
           </button>
+          {selectionFull && (
+            <span className="ml-1">· You can print up to {MAX_SELECTED} labels at a time.</span>
+          )}
         </div>
       )}
 

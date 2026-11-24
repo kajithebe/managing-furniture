@@ -43,7 +43,7 @@ export default function NextCodePreview({
           ? `Next code: ${result.first}`
           : `Codes: ${result.first} – ${result.last}`}
       </p>
-      <p className="mt-1 text-xs text-muted">Code format is set in Settings › Asset codes.</p>
+      <p className="mt-1 text-xs text-muted">Code format is set in Settings → Asset codes.</p>
     </div>
   );
 }

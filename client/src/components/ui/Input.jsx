@@ -6,11 +6,15 @@ export default function Input({
   hint,
   error,
   required = false,
+  keepHint = false,
   mono = false,
   className = '',
   ...rest
 }) {
-  const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
+  // Screen readers read the hint and the error that are on screen.
+  const showHint = hint && (!error || keepHint);
+  const describedBy =
+    [showHint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined;
   const classes = [
     'h-11 w-full rounded border bg-surface px-3 text-base text-ink',
     'placeholder:text-muted',
@@ -24,7 +28,7 @@ export default function Input({
     .join(' ');
 
   return (
-    <Field id={id} label={label} hint={hint} error={error} required={required}>
+    <Field id={id} label={label} hint={hint} error={error} required={required} keepHint={keepHint}>
       <input
         id={id}
         required={required}

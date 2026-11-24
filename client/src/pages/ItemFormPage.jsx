@@ -454,11 +454,8 @@ export default function ItemFormPage() {
               inputMode="numeric"
               min={1}
               max={MAX_QUANTITY}
-              hint={
-                shown('quantity')
-                  ? undefined
-                  : 'Creates this many identical items with consecutive codes.'
-              }
+              hint="Creates this many identical items with consecutive codes."
+              keepHint
               value={form.quantity}
               error={shown('quantity')}
               onChange={(event) => change('quantity', event.target.value)}

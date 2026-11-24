@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { createLoan, listMyLoans } from '../services/loanService.js';
+import { returnItems } from '../services/returnService.js';
 
 export const loansRouter = Router();
 
@@ -32,4 +33,31 @@ loansRouter.post('/', requireAuth, async (req, res) => {
 // GET /api/loans/mine – user. S7 My loans: { open: [...], recent: [...] }.
 loansRouter.get('/mine', requireAuth, async (req, res) => {
   res.json(await listMyLoans(req.user.id));
+});
+
+const loanParams = z.object({ id: z.coerce.number().int().positive() });
+
+// S8 + S9: the home room and the scanned item codes (one or more). The room is the scanned
+// door QR (roomQrToken) or, after "Type the room instead", the chosen room (roomId).
+const returnBody = z
+  .object({
+    roomQrToken: z.string().trim().min(1).max(64).optional(),
+    roomId: z.number().int().positive().optional(),
+    itemCodes: z
+      .array(itemCode)
+      .min(1)
+      .max(50)
+      .refine((codes) => new Set(codes).size === codes.length, {
+        message: 'Each item can be returned only once per call.',
+      }),
+  })
+  .refine((body) => (body.roomQrToken === undefined) !== (body.roomId === undefined), {
+    message: 'Send either roomQrToken or roomId.',
+  });
+
+// POST /api/loans/:id/return – user. Returns the items; the reply is the loan (S9, S10).
+loansRouter.post('/:id/return', requireAuth, async (req, res) => {
+  const { id } = loanParams.parse(req.params);
+  const body = returnBody.parse(req.body);
+  res.json(await returnItems(req.user.id, id, body));
 });

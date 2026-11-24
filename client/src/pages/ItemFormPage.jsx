@@ -7,6 +7,7 @@ import Card from '../components/ui/Card.jsx';
 import Checkbox from '../components/ui/Checkbox.jsx';
 import Input from '../components/ui/Input.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
+import Modal from '../components/ui/Modal.jsx';
 import SelectWithAdd from '../components/ui/SelectWithAdd.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import AddEntryDialog from '../features/items/AddEntryDialog.jsx';
@@ -120,6 +121,10 @@ export default function ItemFormPage() {
   const [lookupsFailed, setLookupsFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [form, setForm] = useState(EMPTY_FORM);
+  // The values the form started with: empty when adding, the item's values when editing.
+  // Cancel asks first (P17) when the form differs from these.
+  const [startForm, setStartForm] = useState(EMPTY_FORM);
+  const [leaving, setLeaving] = useState(false);
   // Errors are shown for a field once the user has left it, not while typing the first time.
   const [touched, setTouched] = useState({});
   const [saving, setSaving] = useState(false);
@@ -153,6 +158,7 @@ export default function ItemFormPage() {
       .then((data) => {
         setItem(data);
         setForm(itemToForm(data));
+        setStartForm(itemToForm(data));
         setItemError('');
       })
       .catch((error) => {
@@ -222,6 +228,13 @@ export default function ItemFormPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Cancel: straight back when nothing has changed, otherwise P17 "Leave without saving?".
+  const changed = JSON.stringify(form) !== JSON.stringify(startForm);
+  function cancel() {
+    if (changed) setLeaving(true);
+    else goBack();
   }
 
   // Back to the page the user came from; the Items list when the page was opened directly.
@@ -492,13 +505,25 @@ export default function ItemFormPage() {
                     ? `Save ${quantity} items`
                     : 'Save item'}
             </Button>
-            <Button variant="secondary" onClick={goBack}>
+            <Button variant="secondary" onClick={cancel}>
               Cancel
             </Button>
           </div>
           <Toast message={toast} onDismiss={() => setToast('')} />
         </Card>
       </div>
+
+      <Modal
+        open={leaving}
+        title="Leave without saving?"
+        cancelLabel="Stay"
+        saveLabel="Leave"
+        saveVariant="dangerFilled"
+        onClose={() => setLeaving(false)}
+        onSave={goBack}
+      >
+        <p className="text-[15px] text-ink">Your changes to this item will be lost.</p>
+      </Modal>
 
       {adding && (
         <AddEntryDialog

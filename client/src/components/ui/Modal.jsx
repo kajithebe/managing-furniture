@@ -11,6 +11,8 @@ export default function Modal({
   onClose,
   onSave,
   saveLabel = 'Save',
+  // The text of the secondary button, e.g. "Stay" on P17.
+  cancelLabel = 'Cancel',
   saveVariant = 'primary',
   saveDisabled = false,
   children,
@@ -96,7 +98,7 @@ export default function Modal({
           <div className="flex flex-col gap-4">{children}</div>
           <div className="mt-6 flex justify-end gap-3 border-t border-line pt-4">
             <Button variant="secondary" onClick={onClose}>
-              Cancel
+              {cancelLabel}
             </Button>
             <Button type="submit" variant={saveVariant} disabled={saveDisabled}>
               {saveLabel}

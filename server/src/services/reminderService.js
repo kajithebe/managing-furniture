@@ -1,9 +1,16 @@
 // The work of the reminders job (MF-20). jobs/reminders.js calls these every 5 minutes.
 // The rules (who gets what, and when) are in reminderRules.js.
 import { prisma } from '../db.js';
+import { notYetReturnedMail, stillNotReturnedMail } from '../mail/notYetReturned.js';
 import { reminderMail } from '../mail/reminder.js';
 import { sendMail } from './mailService.js';
-import { groupForEmail, isPastDue, needsReminder } from './reminderRules.js';
+import {
+  REPEAT_AFTER_MS,
+  groupForEmail,
+  isPastDue,
+  needsReminder,
+  overdueEmailKind,
+} from './reminderRules.js';
 
 const MINUTE = 60 * 1000;
 
@@ -64,21 +71,23 @@ export async function markOverdue(now = new Date()) {
 }
 
 // Saves `field` = now on the group's loan items before the email is sent, but only on items
-// where it still has the value the job read. So two runs (or a restart in the middle) never
-// send the same email twice. Returns false when another run was quicker.
-async function claim(loanItemIds, field, before, now) {
+// where it still matches `when` (the state the job read, e.g. null = no email yet). So two
+// runs (or a restart in the middle) never send the same email twice. Returns false when
+// another run was quicker.
+async function claim(loanItemIds, field, when, now) {
   const { count } = await prisma.loanItem.updateMany({
-    where: { id: { in: loanItemIds }, [field]: before },
+    where: { id: { in: loanItemIds }, [field]: when },
     data: { [field]: now },
   });
   return count > 0;
 }
 
-// After a failed send: put the old value back, so the next run (5 minutes later) tries again.
-async function unclaim(loanItemIds, field, before, now) {
+// After a failed send: set `field` back to `restore`, so the next run (5 minutes later)
+// tries again.
+async function unclaim(loanItemIds, field, restore, now) {
   await prisma.loanItem.updateMany({
     where: { id: { in: loanItemIds }, [field]: now },
-    data: { [field]: before },
+    data: { [field]: restore },
   });
 }
 
@@ -114,6 +123,71 @@ export async function sendReminders(now, { reminderMinutes }) {
       await unclaim(group.loanItemIds, 'reminderSentAt', null, now);
       // No address or content in the log (02 › Security).
       console.error(`Reminder for loan ${group.loanId} could not be sent: ${err.message}`);
+    }
+  }
+  return sent;
+}
+
+// Addresses for the moderator copy: every active moderator and admin (decided 24 Nov 2026).
+async function moderatorEmails() {
+  const users = await prisma.user.findMany({
+    where: { active: true, role: { in: ['MODERATOR', 'ADMIN'] } },
+    orderBy: { id: 'asc' },
+    select: { email: true },
+  });
+  return users.map((user) => user.email);
+}
+
+// Emails 4 and 5 for "not yet returned" items: the first one at the due time, then one
+// every 24 h while the item is still out (only when the repeat setting is on).
+// One email per loan and home room. With the copy setting on, every active moderator and
+// admin gets a Bcc, so the borrower and the staff do not see each other's addresses.
+// Returns how many emails were sent.
+export async function sendOverdueEmails(now, { repeatOverdueEmail, ccModeratorsOnOverdue }) {
+  const repeatBefore = new Date(now.getTime() - REPEAT_AFTER_MS);
+  const candidates = await prisma.loanItem.findMany({
+    where: {
+      status: 'OVERDUE',
+      OR: repeatOverdueEmail
+        ? [{ lastOverdueEmailAt: null }, { lastOverdueEmailAt: { lte: repeatBefore } }]
+        : [{ lastOverdueEmailAt: null }],
+    },
+    orderBy: { id: 'asc' },
+    select: emailFields,
+  });
+  if (candidates.length === 0) {
+    return 0;
+  }
+
+  const kinds = {
+    first: { mail: notYetReturnedMail, when: null, restore: null },
+    repeat: { mail: stillNotReturnedMail, when: { lte: repeatBefore }, restore: repeatBefore },
+  };
+  const moderators = ccModeratorsOnOverdue ? await moderatorEmails() : [];
+
+  let sent = 0;
+  for (const [kind, { mail: buildMail, when, restore }] of Object.entries(kinds)) {
+    const items = candidates.filter((li) => overdueEmailKind(li, now, repeatOverdueEmail) === kind);
+    for (const group of groupForEmail(items)) {
+      if (!(await claim(group.loanItemIds, 'lastOverdueEmailAt', when, now))) {
+        continue;
+      }
+      try {
+        const mail = buildMail({
+          homeRoom: group.homeRoom,
+          dueAt: group.dueAt,
+          items: group.items,
+        });
+        const bcc = moderators.filter((email) => email !== group.email);
+        await sendMail({ to: group.email, bcc, ...mail });
+        sent += 1;
+      } catch (err) {
+        await unclaim(group.loanItemIds, 'lastOverdueEmailAt', restore, now);
+        // No address or content in the log (02 › Security).
+        console.error(
+          `Not yet returned email for loan ${group.loanId} could not be sent: ${err.message}`,
+        );
+      }
     }
   }
   return sent;

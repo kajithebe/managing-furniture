@@ -31,10 +31,13 @@ function getSmtpTransport() {
 }
 
 // Mailgun's HTTP API: no extra package needed, Node's fetch is enough.
-async function sendWithMailgun({ to, subject, text, html }) {
+async function sendWithMailgun({ to, bcc, subject, text, html }) {
   const body = new URLSearchParams({ from: env.MAIL_FROM, to, subject, text });
   if (html) {
     body.set('html', html);
+  }
+  if (bcc?.length) {
+    body.set('bcc', bcc.join(','));
   }
   const credentials = Buffer.from(`api:${env.MAILGUN_API_KEY}`).toString('base64');
 
@@ -48,10 +51,19 @@ async function sendWithMailgun({ to, subject, text, html }) {
   }
 }
 
-export async function sendMail({ to, subject, text, html }) {
+// bcc: optional list of addresses that get a hidden copy (the moderator copy of the
+// "not yet returned" emails); the borrower does not see them.
+export async function sendMail({ to, bcc, subject, text, html }) {
   if (env.MAIL_TRANSPORT === 'mailgun') {
-    await sendWithMailgun({ to, subject, text, html });
+    await sendWithMailgun({ to, bcc, subject, text, html });
     return;
   }
-  await getSmtpTransport().sendMail({ from: env.MAIL_FROM, to, subject, text, html });
+  await getSmtpTransport().sendMail({
+    from: env.MAIL_FROM,
+    to,
+    bcc: bcc?.length ? bcc : undefined,
+    subject,
+    text,
+    html,
+  });
 }

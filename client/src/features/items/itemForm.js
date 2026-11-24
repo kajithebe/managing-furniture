@@ -2,12 +2,13 @@
 // request body for POST /api/items (02 › API contract). Shared by the Add and Edit pages.
 
 // Status on M6 = the item's condition. "On loan" is never chosen here, only by loans.
-// Disposed is left out when adding: a new item is never disposed (needs team agreement).
+// All five conditions from 01 › Adding and editing items, Available by default.
 export const CONDITIONS = [
   { value: 'GOOD', label: 'Available' },
   { value: 'NEEDS_REPAIR', label: 'Needs repair' },
   { value: 'BROKEN', label: 'Broken' },
   { value: 'IN_REPAIR', label: 'In repair' },
+  { value: 'DISPOSED', label: 'Disposed' },
 ];
 
 export const EMPTY_ROOM = { campus: '', building: '', room: '' };

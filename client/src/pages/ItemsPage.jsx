@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { listItems } from '../api/items.js';
 import { getLookups } from '../api/lookups.js';
 import Badge from '../components/ui/Badge.jsx';
@@ -28,6 +28,19 @@ const STATUSES = [
   { value: 'DISPOSED', label: 'Disposed', badge: 'disposed' },
 ];
 const BADGES = Object.fromEntries(STATUSES.map((status) => [status.value, status.badge]));
+
+// Starting filters from the address, e.g. a dashboard tile opens /mod/items?status=ON_LOAN
+// or /mod/items?category=3. Same names and values as GET /api/items; unknown values are
+// ignored, so a wrong link just opens the full list.
+function filtersFromAddress(searchParams) {
+  const category = searchParams.get('category') ?? '';
+  const status = searchParams.get('status') ?? '';
+  return {
+    ...NO_FILTERS,
+    category: /^[1-9]\d{0,8}$/.test(category) ? category : '',
+    status: STATUSES.some((entry) => entry.value === status) ? status : '',
+  };
+}
 
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
@@ -87,7 +100,9 @@ export default function ItemsPage() {
   // so the list is not loaded again on every key press).
   const [searchText, setSearchText] = useState('');
   const [q, setQ] = useState('');
-  const [filters, setFilters] = useState(NO_FILTERS);
+  const [searchParams] = useSearchParams();
+  // Read once when the page opens; after that the filters on the page decide.
+  const [filters, setFilters] = useState(() => filtersFromAddress(searchParams));
   const [showDisposed, setShowDisposed] = useState(false);
   const [sort, setSort] = useState({ column: 'code', order: 'asc' });
   const [page, setPage] = useState(1);

@@ -20,15 +20,22 @@ export const DEFAULT_CODE_SCHEME = {
 // category, brand and colour, and the year it was added.
 const ITEM_SEGMENTS = ['campus', 'category', 'brand', 'colour', 'year'];
 
-// Fixed text: upper case letters and digits only, so it never contains a separator.
-// "metropolia" is accepted and saved as "METROPOLIA".
+// The longest asset code. The phone scanner (useScanner.js) and the item, loan and label
+// routes accept codes of at most 30 characters, so a code format may never make a longer code.
+export const CODE_MAX_LENGTH = 30;
+
+// Fixed text: the characters the scanner accepts in a typed code (A–Z, 0–9, / . _ -),
+// starting with a letter or digit, 1–10 characters. "mp/26" is saved as "MP/26".
 const textSegment = z.object({
   type: z.literal('text'),
   value: z
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9]{1,10}$/, 'Fixed text must be 1–10 letters A–Z or digits.'),
+    .regex(
+      /^[A-Z0-9][A-Z0-9/._-]{0,9}$/,
+      'Fixed text must be 1–10 characters: A–Z, 0–9, / . _ -, starting with a letter or digit.',
+    ),
 });
 
 // z.object drops unknown fields, e.g. a "value" sent with a campus segment.
@@ -67,6 +74,26 @@ export const codeSchemeSchema = z
 // time zone (TZ), so an item added just after midnight on 1 January gets the new year.
 export function yearPart(date, timeZone) {
   return new Intl.DateTimeFormat('en-GB', { year: '2-digit', timeZone }).format(date);
+}
+
+// The longest code a scheme can make with today's short codes. `lengths` holds the longest
+// short code in each list: { campus, category, brand, colour }. Brand and colour count fully,
+// because an item with a brand and a colour gets both in its code.
+export function longestCodeLength(scheme, lengths) {
+  const sizes = scheme.segments.map((segment) => {
+    switch (segment.type) {
+      case 'text':
+        return segment.value.length;
+      case 'number':
+        return scheme.numberLength;
+      case 'year':
+        return 2;
+      default:
+        return lengths[segment.type] ?? 0;
+    }
+  });
+  const separators = (scheme.separator ?? '').length * (sizes.length - 1);
+  return sizes.reduce((sum, size) => sum + size, 0) + separators;
 }
 
 // Turns one running number into a code, e.g. 1 → "MP-00001", or 124 with

@@ -4,6 +4,7 @@ import {
   buildCode,
   codeSchemeSchema,
   DEFAULT_CODE_SCHEME,
+  longestCodeLength,
   yearPart,
 } from '../src/services/codeService.js';
 
@@ -88,6 +89,10 @@ describe('codeSchemeSchema', () => {
     });
   });
 
+  it.each(['MP/26', 'A.B_C-1', 'metropolia'])('accepts the fixed text %s', (text) => {
+    expect(codeSchemeSchema.safeParse(scheme(['text', 'number'], { text })).success).toBe(true);
+  });
+
   it.each([
     ['no running number', scheme(['text', 'campus'])],
     ['two running numbers', scheme(['number', 'number'])],
@@ -96,10 +101,33 @@ describe('codeSchemeSchema', () => {
     ['a number length of 3', scheme(['number'], { numberLength: 3 })],
     ['a number length of 7', scheme(['number'], { numberLength: 7 })],
     ['another separator', scheme(['number'], { separator: '.' })],
-    ['fixed text with a separator in it', scheme(['text', 'number'], { text: 'MP-1' })],
+    ['fixed text starting with a symbol', scheme(['text', 'number'], { text: '-MP' })],
+    ['fixed text with a space', scheme(['text', 'number'], { text: 'M P' })],
     ['empty fixed text', scheme(['text', 'number'], { text: ' ' })],
     ['fixed text over 10 characters', scheme(['text', 'number'], { text: 'METROPOLIA1' })],
   ])('refuses %s', (_, bad) => {
     expect(codeSchemeSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe('longestCodeLength', () => {
+  const lengths = { campus: 3, category: 5, brand: 3, colour: 3 };
+
+  it('counts the default MP-00001 as 8 characters', () => {
+    expect(longestCodeLength(DEFAULT_CODE_SCHEME, lengths)).toBe(8);
+  });
+
+  it('uses the longest short code of each list, the year and the separators', () => {
+    // 3 + 5 + 3 + 3 + 2 + 5 characters, plus 5 separators
+    const all = scheme(['campus', 'category', 'brand', 'colour', 'year', 'number']);
+    expect(longestCodeLength(all, lengths)).toBe(26);
+    expect(longestCodeLength({ ...all, separator: '' }, lengths)).toBe(21);
+  });
+
+  it('finds the Figma example METROPOLIA-KAR-CHR-ISK-GRY-00001 too long (32)', () => {
+    const figma = scheme(['text', 'campus', 'category', 'brand', 'colour', 'number'], {
+      text: 'METROPOLIA',
+    });
+    expect(longestCodeLength(figma, { campus: 3, category: 3, brand: 3, colour: 3 })).toBe(32);
   });
 });

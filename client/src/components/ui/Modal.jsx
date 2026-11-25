@@ -15,6 +15,9 @@ export default function Modal({
   cancelLabel = 'Cancel',
   saveVariant = 'primary',
   saveDisabled = false,
+  // Phone pop-ups (P… on the phone screens, e.g. S9 "Finish return?"): full-width buttons on top
+  // of each other, the main action first.
+  stacked = false,
   children,
 }) {
   const panelRef = useRef(null);
@@ -96,14 +99,25 @@ export default function Modal({
 
         <form onSubmit={handleSubmit} className="mt-4">
           <div className="flex flex-col gap-4">{children}</div>
-          <div className="mt-6 flex justify-end gap-3 border-t border-line pt-4">
-            <Button variant="secondary" onClick={onClose}>
-              {cancelLabel}
-            </Button>
-            <Button type="submit" variant={saveVariant} disabled={saveDisabled}>
-              {saveLabel}
-            </Button>
-          </div>
+          {stacked ? (
+            <div className="mt-6 flex flex-col gap-3">
+              <Button type="submit" variant={saveVariant} disabled={saveDisabled} fullWidth>
+                {saveLabel}
+              </Button>
+              <Button variant="secondary" onClick={onClose} fullWidth>
+                {cancelLabel}
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-6 flex justify-end gap-3 border-t border-line pt-4">
+              <Button variant="secondary" onClick={onClose}>
+                {cancelLabel}
+              </Button>
+              <Button type="submit" variant={saveVariant} disabled={saveDisabled}>
+                {saveLabel}
+              </Button>
+            </div>
+          )}
         </form>
       </div>
     </div>,

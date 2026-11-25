@@ -26,9 +26,20 @@ export const EMPTY_FORM = {
   condition: 'GOOD',
   quantity: '1',
   notes: '',
+  // Edit form only: why a room changed (02 › Edit item, decided 25 Nov 2026).
+  reason: '',
 };
 
 export const MAX_QUANTITY = 200;
+export const MAX_REASON = 500;
+
+// Edit form: true when the home room or current room differs from the item's rooms.
+// Only then is a reason asked for and sent.
+export function roomsChanged(form, start) {
+  return (
+    form.homeRoom.room !== start.homeRoom.room || form.currentRoom.room !== start.currentRoom.room
+  );
+}
 
 // "12" → 12; "", "1.5", "abc" → NaN.
 function wholeNumber(text) {
@@ -42,7 +53,7 @@ export function validQuantity(text) {
 }
 
 // { field: message } for every field that is not valid yet. Empty object = ready to save.
-export function validateItem(form, { withQuantity = true } = {}) {
+export function validateItem(form, { withQuantity = true, withReason = false } = {}) {
   const errors = {};
   if (!form.categoryId) errors.categoryId = 'Choose a category';
   if (form.hasWheels) {
@@ -55,6 +66,8 @@ export function validateItem(form, { withQuantity = true } = {}) {
   if (withQuantity && validQuantity(form.quantity) === null) {
     errors.quantity = `Enter a quantity from 1 to ${MAX_QUANTITY}`;
   }
+  // Not in the design (P13 shows no error): same style as the other field errors.
+  if (withReason && !form.reason.trim()) errors.reason = 'Enter a reason';
   return errors;
 }
 
@@ -116,8 +129,9 @@ export function itemToForm(item) {
 
 // Body for PATCH /api/items/:code: the details and both rooms (02 › Edit item). An empty name
 // is sent as "", so the server falls back to the category name, as when adding. The rooms are
-// always sent; the server only writes an event for a room that really changed.
-export function toUpdateBody(form) {
+// always sent; the server only writes an event for a room that really changed. The reason is
+// sent only with a room change (withReason), because the server needs it only then.
+export function toUpdateBody(form, { withReason = false } = {}) {
   return {
     categoryId: Number(form.categoryId),
     name: form.name.trim(),
@@ -128,5 +142,6 @@ export function toUpdateBody(form) {
     notes: form.notes.trim() || null,
     homeRoomId: Number(form.homeRoom.room),
     currentRoomId: Number(form.currentRoom.room),
+    reason: withReason ? form.reason.trim() : undefined,
   };
 }

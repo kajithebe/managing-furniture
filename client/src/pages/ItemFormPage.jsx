@@ -19,6 +19,8 @@ import {
   EMPTY_FORM,
   itemToForm,
   MAX_QUANTITY,
+  MAX_REASON,
+  roomsChanged,
   STATUS_LABELS,
   toCreateBody,
   toUpdateBody,
@@ -169,7 +171,9 @@ export default function ItemFormPage() {
     return () => controller.abort();
   }, [editing, code, attempt]);
 
-  const errors = validateItem(form, { withQuantity: !editing });
+  // Edit: a changed room needs a reason (P13 field, shown only then).
+  const needsReason = editing && roomsChanged(form, startForm);
+  const errors = validateItem(form, { withQuantity: !editing, withReason: needsReason });
   const valid = Object.keys(errors).length === 0;
   const quantity = validQuantity(form.quantity) ?? 1;
   const shown = (field) => (touched[field] ? errors[field] : undefined);
@@ -218,7 +222,7 @@ export default function ItemFormPage() {
     setSaveError('');
     try {
       if (editing) {
-        await updateItem(code, toUpdateBody(form));
+        await updateItem(code, toUpdateBody(form, { withReason: needsReason }));
         goBack();
         return;
       }
@@ -232,7 +236,9 @@ export default function ItemFormPage() {
   }
 
   // Cancel: straight back when nothing has changed, otherwise P17 "Leave without saving?".
-  const changed = JSON.stringify(form) !== JSON.stringify(startForm);
+  // A reason typed for a room change that was undone again does not count as a change.
+  const compared = needsReason ? form : { ...form, reason: startForm.reason };
+  const changed = JSON.stringify(compared) !== JSON.stringify(startForm);
   function cancel() {
     if (changed) setLeaving(true);
     else goBack();
@@ -427,6 +433,19 @@ export default function ItemFormPage() {
               </button>
             )}
           </div>
+          {needsReason && (
+            // Same field as the Correct location pop-up (P13); only shown when a room changed.
+            <Input
+              id="item-reason"
+              label="Reason"
+              required
+              maxLength={MAX_REASON}
+              value={form.reason}
+              error={shown('reason')}
+              onChange={(event) => change('reason', event.target.value)}
+              onBlur={touch('reason')}
+            />
+          )}
           <div className="flex flex-col gap-1">
             <label htmlFor="item-status" className="text-sm font-semibold text-ink">
               Status *

@@ -3,9 +3,16 @@ import { returnItems } from '../../api/loans.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
+import Modal from '../../components/ui/Modal.jsx';
 import Scanner from '../../components/ui/Scanner.jsx';
 import { parseScan, SCANNER_VIDEO_CLASSES, useScanner } from '../../hooks/useScanner.js';
-import { returnListItems, scannedText } from './returnFormat.js';
+import ItemNames from './ItemNames.jsx';
+import {
+  finishPromptText,
+  notReturnedItems,
+  returnListItems,
+  scannedText,
+} from './returnFormat.js';
 import ReturnStep, { ErrorBox, LinkButton, SuccessBox } from './ReturnStep.jsx';
 
 // S9 · Return step 2: scan each item, or "Type the code instead" (S9 · Manual entry).
@@ -13,14 +20,17 @@ import ReturnStep, { ErrorBox, LinkButton, SuccessBox } from './ReturnStep.jsx';
 // so items scanned before the student leaves still count. The reply is the whole loan, and
 // onLoanChange(loan) gives it to the page: the ticks and "3 of 5 scanned" come from it.
 // roomRef is how the room was chosen in step 1: { roomQrToken } or { roomId }.
-export default function ReturnItemsStep({ loan, room, roomRef, onLoanChange, onBack }) {
+// "Finish return" calls onFinish(), after the "Finish return?" pop-up when items are left.
+export default function ReturnItemsStep({ loan, room, roomRef, onLoanChange, onFinish }) {
   const [error, setError] = useState('');
   const [typing, setTyping] = useState(false);
   const [code, setCode] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   // True while one item is being saved, so more frames of the same QR are ignored.
   const busy = useRef(false);
   const listItems = returnListItems(loan.items);
+  const left = notReturnedItems(listItems);
 
   // Returns one item; true when it was saved, so the typed code can be cleared.
   async function saveCode(itemCode) {
@@ -44,7 +54,7 @@ export default function ReturnItemsStep({ loan, room, roomRef, onLoanChange, onB
   }
 
   function handleScan(text) {
-    if (busy.current) return;
+    if (busy.current || confirming) return;
     const result = parseScan(text);
     if (result?.type === 'item') saveCode(result.code);
     else setError("This QR code isn't an item label.");
@@ -61,8 +71,14 @@ export default function ReturnItemsStep({ loan, room, roomRef, onLoanChange, onB
     if (await saveCode(result.code)) setCode('');
   }
 
+  function handleFinish() {
+    if (left.length === 0) onFinish();
+    else setConfirming(true);
+  }
+
   const { regionId, error: cameraError } = useScanner({ onScan: handleScan });
   const denied = cameraError === 'denied';
+  const prompt = finishPromptText(left.length, loan.dueAt);
 
   return (
     <ReturnStep
@@ -72,7 +88,9 @@ export default function ReturnItemsStep({ loan, room, roomRef, onLoanChange, onB
           {!typing && !denied && (
             <LinkButton onClick={() => setTyping(true)}>Type the code instead</LinkButton>
           )}
-          <LinkButton onClick={onBack}>Back to my loans</LinkButton>
+          <Button fullWidth onClick={handleFinish} disabled={saving}>
+            Finish return
+          </Button>
         </>
       }
     >
@@ -132,6 +150,22 @@ export default function ReturnItemsStep({ loan, room, roomRef, onLoanChange, onB
           </li>
         ))}
       </ul>
+
+      <Modal
+        open={confirming}
+        stacked
+        title="Finish return?"
+        onClose={() => setConfirming(false)}
+        onSave={onFinish}
+        saveLabel="Finish anyway"
+        cancelLabel="Keep scanning"
+      >
+        <p className="text-[15px] text-ink">
+          {prompt.before}
+          <ItemNames items={left} />
+          {prompt.after}
+        </p>
+      </Modal>
     </ReturnStep>
   );
 }

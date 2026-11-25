@@ -4,9 +4,11 @@ import { getMyLoans } from '../api/loans.js';
 import Button from '../components/ui/Button.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import { returnableItems } from '../features/loans/loanFormat.js';
+import ReturnDoneStep from '../features/return/ReturnDoneStep.jsx';
 import ReturnItemsStep from '../features/return/ReturnItemsStep.jsx';
 import ReturnRoomStep from '../features/return/ReturnRoomStep.jsx';
 import ReturnStep from '../features/return/ReturnStep.jsx';
+import { notReturnedItems, returnListItems } from '../features/return/returnFormat.js';
 
 const TITLE = 'Return items';
 
@@ -23,6 +25,8 @@ export default function ReturnPage() {
   const [result, setResult] = useState({ key: null, loan: null, failed: false });
   // The home room checked in step 1: { room: { id, name }, roomRef: { roomQrToken } | { roomId } }.
   const [chosen, setChosen] = useState(null);
+  // True after "Finish return": S10 Return done.
+  const [finished, setFinished] = useState(false);
 
   const loading = result.key !== requestKey;
 
@@ -66,8 +70,20 @@ export default function ReturnPage() {
 
   const { loan } = result;
 
+  if (loan && chosen && finished) {
+    return <ReturnDoneStep loan={loan} room={chosen.room} onBack={backToLoans} />;
+  }
+
+  // Finish with nothing scanned back: there is no "Return done", so go back to My loans
+  // (not in the design; needs team agreement).
+  function handleFinish() {
+    const listItems = returnListItems(loan.items);
+    if (notReturnedItems(listItems).length === listItems.length) backToLoans();
+    else setFinished(true);
+  }
+
   // Step 2 comes before the "nothing to return" check: after the last scan the loan is closed,
-  // and the student must still see the list (and, later, the finish screen).
+  // and the student must still see the list and the finish screen.
   if (loan && chosen) {
     return (
       <ReturnItemsStep
@@ -75,7 +91,7 @@ export default function ReturnPage() {
         room={chosen.room}
         roomRef={chosen.roomRef}
         onLoanChange={(updated) => setResult((previous) => ({ ...previous, loan: updated }))}
-        onBack={backToLoans}
+        onFinish={handleFinish}
       />
     );
   }

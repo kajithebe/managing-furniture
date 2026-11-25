@@ -3,37 +3,105 @@
 // Rules: the running number counts across the whole system, a code is set once when the
 // item is created and never changes, and numbers are reserved inside the same transaction
 // as the item insert, so two moderators adding items at once never get the same number.
-//
-// Sprint 1 supports the default scheme (fixed text + running number, MP-00001).
-// MF-21 (customizable code scheme) adds the campus, category, brand, colour and year segments.
+// A new scheme only changes the codes of items created afterwards.
+import { z } from 'zod';
 import { AppError } from '../middleware/error.js';
 
 const SETTINGS_ID = 1;
 
-// Turns one running number into a code, e.g. 1 → "MP-00001".
-export function buildCode(scheme, number) {
-  const parts = scheme.segments.map((segment) => {
+// MP-00001: fixed text + 5-digit running number (seed and "Reset to default").
+export const DEFAULT_CODE_SCHEME = {
+  segments: [{ type: 'text', value: 'MP' }, { type: 'number' }],
+  separator: '-',
+  numberLength: 5,
+};
+
+// Segments whose value comes from the item: the short code of its campus (of the home room),
+// category, brand and colour, and the year it was added.
+const ITEM_SEGMENTS = ['campus', 'category', 'brand', 'colour', 'year'];
+
+// Fixed text: upper case letters and digits only, so it never contains a separator.
+// "metropolia" is accepted and saved as "METROPOLIA".
+const textSegment = z.object({
+  type: z.literal('text'),
+  value: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{1,10}$/, 'Fixed text must be 1–10 letters A–Z or digits.'),
+});
+
+// z.object drops unknown fields, e.g. a "value" sent with a campus segment.
+const itemOrNumberSegment = z.object({ type: z.enum([...ITEM_SEGMENTS, 'number']) });
+
+// A scheme as sent by Settings → Asset codes (PUT and preview) and stored in Setting.codeScheme.
+export const codeSchemeSchema = z
+  .object({
+    segments: z
+      .array(z.union([textSegment, itemOrNumberSegment]))
+      .min(1)
+      .max(7),
+    separator: z.enum(['-', '/', '']),
+    numberLength: z.number().int().min(4).max(6),
+  })
+  .superRefine((scheme, ctx) => {
+    const types = scheme.segments.map((segment) => segment.type);
+    // The running number keeps every code unique ("Needed to keep every code unique").
+    if (types.filter((type) => type === 'number').length !== 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['segments'],
+        message: 'The running number must be in the code exactly once.',
+      });
+    }
+    if (new Set(types).size !== types.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['segments'],
+        message: 'Each segment can be used only once.',
+      });
+    }
+  });
+
+// The year segment: the last two digits of the year the item is added, in the app's
+// time zone (TZ), so an item added just after midnight on 1 January gets the new year.
+export function yearPart(date, timeZone) {
+  return new Intl.DateTimeFormat('en-GB', { year: '2-digit', timeZone }).format(date);
+}
+
+// Turns one running number into a code, e.g. 1 → "MP-00001", or 124 with
+// parts { campus: 'KAR', category: 'CHR' } → "KAR-CHR-00124".
+// `parts` holds the item's short codes and year: { campus, category, brand, colour, year }.
+// An item may have no brand or colour: then that segment is left out of the code.
+export function buildCode(scheme, number, parts = {}) {
+  const values = scheme.segments.map((segment) => {
     switch (segment.type) {
       case 'text':
         return segment.value;
       case 'number':
         return String(number).padStart(scheme.numberLength, '0');
+      case 'brand':
+      case 'colour':
+        return parts[segment.type] || null;
       default:
-        // Only reachable if the scheme was changed before MF-21 adds the other segments.
-        throw new AppError(
-          500,
-          'CODE_SCHEME_UNSUPPORTED',
-          `Code scheme segment "${segment.type}" is not supported yet.`,
-        );
+        // Campus, category and year: every item has them, so a missing one is a bug.
+        if (!parts[segment.type]) {
+          throw new AppError(
+            500,
+            'CODE_PART_MISSING',
+            `The ${segment.type} part of the asset code is missing.`,
+          );
+        }
+        return parts[segment.type];
     }
   });
-  return parts.join(scheme.separator ?? '');
+  return values.filter((value) => value !== null).join(scheme.separator ?? '');
 }
 
 // Reserves `count` running numbers in one step and returns the new codes in order.
 // Must be called with the transaction client (tx) of prisma.$transaction, so the numbers
 // are only used up if the items are really saved.
-export async function reserveCodes(tx, count) {
+export async function reserveCodes(tx, count, parts = {}) {
   // The atomic increment locks the settings row until the transaction ends,
   // so a second request waits instead of reading the same number.
   const setting = await tx.setting.update({
@@ -44,7 +112,7 @@ export async function reserveCodes(tx, count) {
 
   const firstNumber = setting.nextNumber - count;
   const codes = Array.from({ length: count }, (_, i) =>
-    buildCode(setting.codeScheme, firstNumber + i),
+    buildCode(setting.codeScheme, firstNumber + i, parts),
   );
 
   // Safety net: a code must never be given twice (for example after a scheme change).
@@ -60,8 +128,8 @@ export async function reserveCodes(tx, count) {
 }
 
 // One code for one new item.
-export async function nextCode(tx) {
-  const [code] = await reserveCodes(tx, 1);
+export async function nextCode(tx, parts = {}) {
+  const [code] = await reserveCodes(tx, 1, parts);
   return code;
 }
 
@@ -69,7 +137,7 @@ export async function nextCode(tx) {
 // "Next code: MP-00127" (quantity 1, first = last) or "Codes: MP-00127 – MP-00156".
 // Read only: it does not use up numbers, so the real codes can differ if someone
 // else saves an item first.
-export async function previewCodes(db, quantity = 1) {
+export async function previewCodes(db, quantity = 1, parts = {}) {
   const setting = await db.setting.findUnique({
     where: { id: SETTINGS_ID },
     select: { nextNumber: true, codeScheme: true },
@@ -78,7 +146,7 @@ export async function previewCodes(db, quantity = 1) {
     throw new AppError(500, 'SETTINGS_MISSING', 'Settings are missing. Run the seed.');
   }
   return {
-    first: buildCode(setting.codeScheme, setting.nextNumber),
-    last: buildCode(setting.codeScheme, setting.nextNumber + quantity - 1),
+    first: buildCode(setting.codeScheme, setting.nextNumber, parts),
+    last: buildCode(setting.codeScheme, setting.nextNumber + quantity - 1, parts),
   };
 }

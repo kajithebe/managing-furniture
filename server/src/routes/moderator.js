@@ -11,6 +11,7 @@ import {
 } from '../services/approvalService.js';
 import { getDashboard } from '../services/dashboardService.js';
 import { OVERDUE_SORT_COLUMNS, listOverdue } from '../services/overdueService.js';
+import { markReturned } from '../services/returnService.js';
 
 export const moderatorRouter = Router();
 
@@ -57,6 +58,14 @@ for (const [action, approve] of [
     res.json(await decideLoanItem(id, req.user, { approve, note }));
   });
 }
+
+// POST /api/moderator/loan-items/:id/mark-returned – P12 (M4, M7). The P12 "Note" is optional,
+// with the same rules as the P10 note: max 500 characters, empty = no note.
+moderatorRouter.post('/loan-items/:id/mark-returned', async (req, res) => {
+  const { id } = idParams.parse(req.params);
+  const { note } = decisionBody.parse(req.body ?? {});
+  res.json(await markReturned(id, req.user, { note }));
+});
 
 // GET /api/moderator/dashboard – M1: tiles, lists, items by status, recent activity in one call.
 moderatorRouter.get('/dashboard', async (req, res) => {

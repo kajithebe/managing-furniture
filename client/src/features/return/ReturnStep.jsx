@@ -27,3 +27,32 @@ export function LinkButton({ onClick, children }) {
     </button>
   );
 }
+
+// Danger box under the scanner (S8 wrong room, S9 wrong item / wrong home room).
+// The text is shown as plain text (React escapes it); it is usually error.message from the API.
+export function ErrorBox({ children, className = '' }) {
+  return (
+    <p
+      role="alert"
+      className={`flex gap-3 rounded-card bg-danger-bg px-4 py-3 text-[15px] text-danger ${className}`}
+    >
+      <span aria-hidden="true">!</span>
+      <span>{children}</span>
+    </p>
+  );
+}
+
+// Green box at the top of S9: "✓ In room D569 ✓".
+export function SuccessBox({ children, className = '' }) {
+  return (
+    <p
+      role="status"
+      className={`flex gap-3 rounded-card bg-brand-tint px-4 py-3 text-[15px] text-ink ${className}`}
+    >
+      <span aria-hidden="true" className="font-semibold text-brand">
+        ✓
+      </span>
+      <span>{children}</span>
+    </p>
+  );
+}

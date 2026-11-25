@@ -4,6 +4,7 @@ import { getMyLoans } from '../api/loans.js';
 import Button from '../components/ui/Button.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import { returnableItems } from '../features/loans/loanFormat.js';
+import ReturnItemsStep from '../features/return/ReturnItemsStep.jsx';
 import ReturnRoomStep from '../features/return/ReturnRoomStep.jsx';
 import ReturnStep from '../features/return/ReturnStep.jsx';
 
@@ -19,6 +20,8 @@ export default function ReturnPage() {
   const [attempt, setAttempt] = useState(0);
   const requestKey = `${loanId}#${attempt}`;
   const [result, setResult] = useState({ key: null, loan: null, failed: false });
+  // The home room checked in step 1: { room: { id, name }, roomRef: { roomQrToken } | { roomId } }.
+  const [chosen, setChosen] = useState(null);
 
   const loading = result.key !== requestKey;
 
@@ -72,5 +75,15 @@ export default function ReturnPage() {
     );
   }
 
-  return <ReturnRoomStep loan={loan} onBack={backToLoans} />;
+  if (chosen) {
+    return <ReturnItemsStep room={chosen.room} onBack={backToLoans} />;
+  }
+
+  return (
+    <ReturnRoomStep
+      loan={loan}
+      onRoom={(room, roomRef) => setChosen({ room, roomRef })}
+      onBack={backToLoans}
+    />
+  );
 }

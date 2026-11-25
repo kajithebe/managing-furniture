@@ -2,6 +2,7 @@
 import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { prisma } from './db.js';
+import { startReminderJob } from './jobs/reminders.js';
 
 const app = createApp();
 
@@ -14,10 +15,14 @@ const server = app.listen(env.PORT, (err) => {
   console.info(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
 
+// Reminders and "not yet returned" emails, every 5 minutes (MF-20).
+const reminderTask = startReminderJob();
+
 // Docker sends SIGTERM on stop; Ctrl+C sends SIGINT.
 // Finish open requests, close the database connections, then exit.
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
+    reminderTask.stop();
     server.close(async () => {
       await prisma.$disconnect();
       process.exit(0);

@@ -13,6 +13,7 @@ const TITLE = 'Return items';
 // S8–S10 · Return items (MF-27), opened from "Return items" on My loans: /return/:loanId.
 // Students have no GET /loans/:id, so the loan is taken from GET /loans/mine (02 › Loan shape).
 // Another user's loan is never in that list, so it shows "nothing to return" like a closed one.
+// After each scan in step 2 the loan is replaced by the reply of POST /loans/:id/return.
 export default function ReturnPage() {
   const { loanId } = useParams();
   const navigate = useNavigate();
@@ -64,6 +65,21 @@ export default function ReturnPage() {
   }
 
   const { loan } = result;
+
+  // Step 2 comes before the "nothing to return" check: after the last scan the loan is closed,
+  // and the student must still see the list (and, later, the finish screen).
+  if (loan && chosen) {
+    return (
+      <ReturnItemsStep
+        loan={loan}
+        room={chosen.room}
+        roomRef={chosen.roomRef}
+        onLoanChange={(updated) => setResult((previous) => ({ ...previous, loan: updated }))}
+        onBack={backToLoans}
+      />
+    );
+  }
+
   if (!loan || loan.status === 'CLOSED' || returnableItems(loan.items).length === 0) {
     return (
       <ReturnStep title={TITLE}>
@@ -73,10 +89,6 @@ export default function ReturnPage() {
         </Button>
       </ReturnStep>
     );
-  }
-
-  if (chosen) {
-    return <ReturnItemsStep room={chosen.room} onBack={backToLoans} />;
   }
 
   return (

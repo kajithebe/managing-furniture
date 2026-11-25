@@ -7,7 +7,7 @@ const STYLES = {
   declined: { text: 'Declined', classes: 'bg-danger-bg text-danger' },
   overdue: { text: 'Not yet returned', classes: 'bg-danger-bg text-danger' },
   returned: { text: 'Returned ✓', classes: 'bg-subtle-2 text-muted' },
-  // Item statuses (03)
+  notScanned: { text: '— Not scanned yet', classes: 'bg-subtle-2 text-ink' },
   available: { text: 'Available', classes: 'bg-brand-tint text-brand' },
   onLoan: { text: 'On loan', classes: 'bg-subtle-2 text-ink' },
   needsRepair: { text: 'Needs repair', classes: 'bg-warn-bg text-warn' },

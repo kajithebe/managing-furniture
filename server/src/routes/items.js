@@ -93,6 +93,9 @@ const updateItemSchema = z
     notes: z.string().trim().max(1000).nullish(),
     homeRoomId: id.optional(),
     currentRoomId: id.optional(),
+    // Why a room changed (02 › Edit item, decided 25 Nov 2026). Required by the service when
+    // homeRoomId or currentRoomId really changes, because only then is it known.
+    reason: z.string().trim().min(1).max(500).optional(),
   })
   .refine((changes) => Object.keys(changes).length > 0, 'Nothing to change.');
 

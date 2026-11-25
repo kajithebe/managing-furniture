@@ -1,6 +1,7 @@
 // PATCH /api/items/:code (MF-28, M6 Edit item, 02 › Edit item): details and both rooms.
-// A changed home room writes HOME_CHANGED, a changed current room LOCATION_CORRECTED; the
-// current room cannot change while the item is on loan. The database is mocked, so these
+// A changed home room writes HOME_CHANGED, a changed current room LOCATION_CORRECTED, each
+// with the required reason as its note; the current room cannot change while the item is on
+// loan. The database is mocked, so these
 // tests run anywhere, including CI.
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,6 +34,7 @@ const MODERATOR_ID = 4;
 const D569 = 1; // home room and current room of the chair
 const D751 = 2;
 const D575 = 3;
+const REASON = 'Moved to the new project room';
 
 function sessionCookie(userId) {
   const res = {
@@ -103,7 +105,7 @@ beforeEach(() => {
 
 describe('PATCH /api/items/:code – rooms', () => {
   it('a changed home room is saved with a HOME_CHANGED event', async () => {
-    const res = await patchChair({ homeRoomId: D575 });
+    const res = await patchChair({ homeRoomId: D575, reason: REASON });
 
     expect(res.status).toBe(200);
     expect(prisma.room.findUnique).toHaveBeenCalledWith({
@@ -115,12 +117,12 @@ describe('PATCH /api/items/:code – rooms', () => {
       data: { homeRoomId: D575 },
     });
     expect(writtenEvents()).toEqual([
-      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: 'Edited' },
+      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: REASON },
     ]);
   });
 
-  it('a changed current room is saved with a LOCATION_CORRECTED event, note "Edited"', async () => {
-    const res = await patchChair({ currentRoomId: D751 });
+  it('a changed current room is saved with a LOCATION_CORRECTED event, note = reason', async () => {
+    const res = await patchChair({ currentRoomId: D751, reason: REASON });
 
     expect(res.status).toBe(200);
     // Only matches while the item is still not on loan.
@@ -129,7 +131,7 @@ describe('PATCH /api/items/:code – rooms', () => {
       data: { currentRoomId: D751 },
     });
     expect(writtenEvents()).toEqual([
-      { type: 'LOCATION_CORRECTED', fromRoomId: D569, toRoomId: D751, note: 'Edited' },
+      { type: 'LOCATION_CORRECTED', fromRoomId: D569, toRoomId: D751, note: REASON },
     ]);
   });
 
@@ -138,6 +140,7 @@ describe('PATCH /api/items/:code – rooms', () => {
       notes: 'Group work seating',
       homeRoomId: D575,
       currentRoomId: D751,
+      reason: REASON,
     });
 
     expect(res.status).toBe(200);
@@ -149,8 +152,8 @@ describe('PATCH /api/items/:code – rooms', () => {
     });
     expect(writtenEvents()).toEqual([
       { type: 'EDITED', note: 'Changed: notes' },
-      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: 'Edited' },
-      { type: 'LOCATION_CORRECTED', fromRoomId: D569, toRoomId: D751, note: 'Edited' },
+      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: REASON },
+      { type: 'LOCATION_CORRECTED', fromRoomId: D569, toRoomId: D751, note: REASON },
     ]);
   });
 
@@ -182,7 +185,7 @@ describe('PATCH /api/items/:code – room errors', () => {
   it('on loan: a current room change gives 409 ITEM_ON_LOAN and changes nothing', async () => {
     prisma.item.findUnique.mockResolvedValue(chair({ onLoan: true, currentRoomId: D751 }));
 
-    const res = await patchChair({ currentRoomId: D569 });
+    const res = await patchChair({ currentRoomId: D569, reason: REASON });
 
     expect(res.status).toBe(409);
     expect(res.body.error).toEqual({
@@ -198,18 +201,18 @@ describe('PATCH /api/items/:code – room errors', () => {
     prisma.item.findUnique.mockResolvedValue(chair({ onLoan: true, currentRoomId: D751 }));
     prisma.loanItem.findFirst.mockResolvedValue(null);
 
-    const res = await patchChair({ homeRoomId: D575 });
+    const res = await patchChair({ homeRoomId: D575, reason: REASON });
 
     expect(res.status).toBe(200);
     expect(writtenEvents()).toEqual([
-      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: 'Edited' },
+      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: REASON },
     ]);
   });
 
   it('borrowed meanwhile: the guarded update matches nothing → 409 ITEM_ON_LOAN, no events', async () => {
     prisma.item.updateMany.mockResolvedValue({ count: 0 });
 
-    const res = await patchChair({ currentRoomId: D751 });
+    const res = await patchChair({ currentRoomId: D751, reason: REASON });
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('ITEM_ON_LOAN');
@@ -219,7 +222,7 @@ describe('PATCH /api/items/:code – room errors', () => {
   it('unknown room → 404 ROOM_NOT_FOUND', async () => {
     prisma.room.findUnique.mockResolvedValue(null);
 
-    const res = await patchChair({ homeRoomId: 999 });
+    const res = await patchChair({ homeRoomId: 999, reason: REASON });
 
     expect(res.status).toBe(404);
     expect(res.body.error).toEqual({
@@ -232,7 +235,7 @@ describe('PATCH /api/items/:code – room errors', () => {
   it('archived room → 404 ROOM_NOT_FOUND', async () => {
     prisma.room.findUnique.mockResolvedValue({ archived: true });
 
-    const res = await patchChair({ currentRoomId: D751 });
+    const res = await patchChair({ currentRoomId: D751, reason: REASON });
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('ROOM_NOT_FOUND');
@@ -247,18 +250,65 @@ describe('PATCH /api/items/:code – room errors', () => {
   });
 });
 
+describe('PATCH /api/items/:code – reason', () => {
+  it('a room change without a reason → 400 VALIDATION_ERROR, nothing saved', async () => {
+    const res = await patchChair({ homeRoomId: D575 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(prisma.room.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('a current room change with only spaces as the reason → 400', async () => {
+    const res = await patchChair({ currentRoomId: D751, reason: '   ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('a reason longer than 500 characters → 400', async () => {
+    const res = await patchChair({ homeRoomId: D575, reason: 'x'.repeat(501) });
+
+    expect(res.status).toBe(400);
+    expect(prisma.item.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('the reason is trimmed and saved as the note of each room event', async () => {
+    const res = await patchChair({
+      homeRoomId: D575,
+      currentRoomId: D751,
+      reason: '  Found in corridor  ',
+    });
+
+    expect(res.status).toBe(200);
+    expect(writtenEvents()).toEqual([
+      { type: 'HOME_CHANGED', fromRoomId: D569, toRoomId: D575, note: 'Found in corridor' },
+      { type: 'LOCATION_CORRECTED', fromRoomId: D569, toRoomId: D751, note: 'Found in corridor' },
+    ]);
+  });
+
+  it('no room change: no reason needed, and the EDITED note stays the field names', async () => {
+    const res = await patchChair({ notes: 'Group work seating', homeRoomId: D569 });
+
+    expect(res.status).toBe(200);
+    expect(writtenEvents()).toEqual([{ type: 'EDITED', note: 'Changed: notes' }]);
+  });
+});
+
 describe('PATCH /api/items/:code – access', () => {
   it('no session → 401', async () => {
     const res = await request(createApp())
       .patch('/api/items/MP-00123')
       .set('Origin', ORIGIN)
-      .send({ homeRoomId: D575 });
+      .send({ homeRoomId: D575, reason: REASON });
 
     expect(res.status).toBe(401);
   });
 
   it('a student → 403', async () => {
-    const res = await patchChair({ homeRoomId: D575 }, 'USER');
+    const res = await patchChair({ homeRoomId: D575, reason: REASON }, 'USER');
 
     expect(res.status).toBe(403);
     expect(prisma.item.updateMany).not.toHaveBeenCalled();

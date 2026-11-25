@@ -279,8 +279,9 @@ async function checkRoom(roomId) {
 
 // PATCH /api/items/:code. `changes` is already validated and holds only editable fields
 // and the two rooms.
-// - a changed home room → HOME_CHANGED event; a changed current room → LOCATION_CORRECTED
-//   (note "Edited"); an unchanged room writes nothing and is not checked again.
+// - a changed home room → HOME_CHANGED event; a changed current room → LOCATION_CORRECTED;
+//   both need a reason, saved as the event note (shown as the reason in Recent activity).
+//   An unchanged room writes nothing, needs no reason and is not checked again.
 // - the current room cannot change while the item is on loan → 409 ITEM_ON_LOAN.
 // - the other details → one EDITED event with the names of the changed fields.
 export async function updateItem(code, changes, userId) {
@@ -298,12 +299,15 @@ export async function updateItem(code, changes, userId) {
     throw itemNotFound(code);
   }
 
-  const { homeRoomId, currentRoomId, ...details } = changes;
+  const { homeRoomId, currentRoomId, reason, ...details } = changes;
   const homeChanged = homeRoomId !== undefined && homeRoomId !== item.homeRoomId;
   const currentChanged = currentRoomId !== undefined && currentRoomId !== item.currentRoomId;
 
   if (currentChanged && item.onLoan) {
     throw itemOnLoan(code);
+  }
+  if ((homeChanged || currentChanged) && !reason) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'reason: is required when a room changes');
   }
   if (homeChanged) {
     await checkRoom(homeRoomId);
@@ -368,7 +372,7 @@ export async function updateItem(code, changes, userId) {
       type: 'HOME_CHANGED',
       fromRoomId: item.homeRoomId,
       toRoomId: homeRoomId,
-      note: 'Edited',
+      note: reason,
     });
   }
   if (currentChanged) {
@@ -376,7 +380,7 @@ export async function updateItem(code, changes, userId) {
       type: 'LOCATION_CORRECTED',
       fromRoomId: item.currentRoomId,
       toRoomId: currentRoomId,
-      note: 'Edited',
+      note: reason,
     });
   }
 

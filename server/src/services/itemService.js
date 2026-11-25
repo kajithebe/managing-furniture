@@ -251,8 +251,9 @@ export async function createItems(data, userId) {
   });
 }
 
-// The details a moderator can edit. The code never changes; condition, current room and
-// home room have their own actions with a reason (MF-29); onLoan only changes through loans.
+// The details a moderator can edit. The code never changes; the condition has its own action
+// with a reason (MF-29); onLoan only changes through loans. The rooms are edited too, but each
+// room change gets its own event (see updateItem).
 const EDITABLE_FIELDS = [
   'name',
   'categoryId',
@@ -263,27 +264,69 @@ const EDITABLE_FIELDS = [
   'notes',
 ];
 
-// PATCH /api/items/:code. `changes` is already validated and holds only editable fields.
+// 02 › Edit item: the current room follows the loan while an item is on loan (M7 wording).
+function itemOnLoan(code) {
+  return new AppError(409, 'ITEM_ON_LOAN', 'Mark this item returned first', { itemCode: code });
+}
+
+// A room chosen on the Edit form must exist and not be archived.
+async function checkRoom(roomId) {
+  const room = await prisma.room.findUnique({ where: { id: roomId }, select: { archived: true } });
+  if (!room || room.archived) {
+    throw new AppError(404, 'ROOM_NOT_FOUND', 'Choose a room from the list.');
+  }
+}
+
+// PATCH /api/items/:code. `changes` is already validated and holds only editable fields
+// and the two rooms.
+// - a changed home room → HOME_CHANGED event; a changed current room → LOCATION_CORRECTED;
+//   both need a reason, saved as the event note (shown as the reason in Recent activity).
+//   An unchanged room writes nothing, needs no reason and is not checked again.
+// - the current room cannot change while the item is on loan → 409 ITEM_ON_LOAN.
+// - the other details → one EDITED event with the names of the changed fields.
 export async function updateItem(code, changes, userId) {
   const item = await prisma.item.findUnique({
     where: { code },
-    select: { id: true, ...Object.fromEntries(EDITABLE_FIELDS.map((field) => [field, true])) },
+    select: {
+      id: true,
+      onLoan: true,
+      homeRoomId: true,
+      currentRoomId: true,
+      ...Object.fromEntries(EDITABLE_FIELDS.map((field) => [field, true])),
+    },
   });
   if (!item) {
     throw itemNotFound(code);
   }
 
-  if (changes.categoryId) {
-    await checkActive(prisma.category, changes.categoryId, 'Category');
+  const { homeRoomId, currentRoomId, reason, ...details } = changes;
+  const homeChanged = homeRoomId !== undefined && homeRoomId !== item.homeRoomId;
+  const currentChanged = currentRoomId !== undefined && currentRoomId !== item.currentRoomId;
+
+  if (currentChanged && item.onLoan) {
+    throw itemOnLoan(code);
   }
-  if (changes.brandId) {
-    await checkActive(prisma.brand, changes.brandId, 'Brand');
+  if ((homeChanged || currentChanged) && !reason) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'reason: is required when a room changes');
   }
-  if (changes.colourId) {
-    await checkActive(prisma.colour, changes.colourId, 'Colour');
+  if (homeChanged) {
+    await checkRoom(homeRoomId);
+  }
+  if (currentChanged && currentRoomId !== homeRoomId) {
+    await checkRoom(currentRoomId);
   }
 
-  const next = { ...item, ...changes };
+  if (details.categoryId) {
+    await checkActive(prisma.category, details.categoryId, 'Category');
+  }
+  if (details.brandId) {
+    await checkActive(prisma.brand, details.brandId, 'Brand');
+  }
+  if (details.colourId) {
+    await checkActive(prisma.colour, details.colourId, 'Colour');
+  }
+
+  const next = { ...item, ...details };
   next.notes = next.notes || null;
 
   // Wheels rule, checked on the result: the request may change only one of the two fields.
@@ -307,20 +350,54 @@ export async function updateItem(code, changes, userId) {
   }
 
   const changed = EDITABLE_FIELDS.filter((field) => next[field] !== item[field]);
-  if (changed.length === 0) {
+  if (changed.length === 0 && !homeChanged && !currentChanged) {
     return getItem(code);
   }
 
-  await prisma.$transaction([
-    prisma.item.update({
-      where: { id: item.id },
-      data: Object.fromEntries(changed.map((field) => [field, next[field]])),
-    }),
-    // Item history: which fields changed (names only, no user text).
-    prisma.itemEvent.create({
-      data: { itemId: item.id, type: 'EDITED', userId, note: `Changed: ${changed.join(', ')}` },
-    }),
-  ]);
+  const data = Object.fromEntries(changed.map((field) => [field, next[field]]));
+  if (homeChanged) {
+    data.homeRoomId = homeRoomId;
+  }
+  if (currentChanged) {
+    data.currentRoomId = currentRoomId;
+  }
+
+  // Item history: one event per kind of change (field names only, no user text).
+  const events = [];
+  if (changed.length > 0) {
+    events.push({ type: 'EDITED', note: `Changed: ${changed.join(', ')}` });
+  }
+  if (homeChanged) {
+    events.push({
+      type: 'HOME_CHANGED',
+      fromRoomId: item.homeRoomId,
+      toRoomId: homeRoomId,
+      note: reason,
+    });
+  }
+  if (currentChanged) {
+    events.push({
+      type: 'LOCATION_CORRECTED',
+      fromRoomId: item.currentRoomId,
+      toRoomId: currentRoomId,
+      note: reason,
+    });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // When the current room changes, the update only matches while the item is still not on
+    // loan, so a loan approved since the check above cannot be overwritten.
+    const { count } = await tx.item.updateMany({
+      where: currentChanged ? { id: item.id, onLoan: false } : { id: item.id },
+      data,
+    });
+    if (count === 0) {
+      throw itemOnLoan(code);
+    }
+    await tx.itemEvent.createMany({
+      data: events.map((event) => ({ itemId: item.id, userId, ...event })),
+    });
+  });
 
   return getItem(code);
 }

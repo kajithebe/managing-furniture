@@ -3,7 +3,7 @@
 // GET  /api/items             moderator  M5 list: filters, search, sorting, paging → { data, total }
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
-// PATCH /api/items/:code      moderator  edit details (code read-only); returns the item
+// PATCH /api/items/:code      moderator  edit details and rooms (code read-only); returns the item
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -79,8 +79,9 @@ const createItemSchema = z
     }
   });
 
-// Only the details below can be edited; code, condition, rooms and onLoan are dropped.
-// The wheels rule is checked in the service, together with the item's current values.
+// Only the details and rooms below can be edited (M6 Edit item, 02 › Edit item, 24 Nov 2026);
+// code, condition and onLoan are dropped. The wheels rule and the room rules are checked in
+// the service, together with the item's current values.
 const updateItemSchema = z
   .object({
     categoryId: id.optional(),
@@ -90,6 +91,11 @@ const updateItemSchema = z
     hasWheels: z.boolean().optional(),
     wheelCount: z.number().int().min(1).max(12).nullish(),
     notes: z.string().trim().max(1000).nullish(),
+    homeRoomId: id.optional(),
+    currentRoomId: id.optional(),
+    // Why a room changed (02 › Edit item, decided 25 Nov 2026). Required by the service when
+    // homeRoomId or currentRoomId really changes, because only then is it known.
+    reason: z.string().trim().min(1).max(500).optional(),
   })
   .refine((changes) => Object.keys(changes).length > 0, 'Nothing to change.');
 

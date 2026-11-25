@@ -5,7 +5,9 @@ import HomeRedirect from './features/auth/HomeRedirect.jsx';
 import RequireAuth from './features/auth/RequireAuth.jsx';
 import BorrowPage from './pages/BorrowPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import ItemFormPage from './pages/ItemFormPage.jsx';
 import ItemPage from './pages/ItemPage.jsx';
+import ItemsPage from './pages/ItemsPage.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -63,9 +65,10 @@ export const router = createBrowserRouter([
           { path: '/mod', element: <DashboardPage /> },
           { path: '/mod/requests', element: <RequestsPage /> },
           { path: '/mod/overdue', element: placeholder('Not yet returned') },
-          { path: '/mod/items', element: placeholder('Items') },
-          { path: '/mod/items/new', element: placeholder('Add item') },
+          { path: '/mod/items', element: <ItemsPage /> },
+          { path: '/mod/items/new', element: <ItemFormPage /> },
           { path: '/mod/items/:code', element: placeholder('Item') },
+          { path: '/mod/items/:code/edit', element: <ItemFormPage /> },
           { path: '/mod/labels', element: <LabelsPage /> },
           { path: '/mod/reports/:report', element: <ReportsPage /> },
           { path: '/mod/profile', element: <ProfilePage desktop /> },

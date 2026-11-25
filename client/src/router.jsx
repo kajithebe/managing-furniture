@@ -13,6 +13,7 @@ import LoginCodePage from './pages/LoginCodePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import MyLoansPage from './pages/MyLoansPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
+import OverduePage from './pages/OverduePage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
@@ -65,7 +66,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/mod', element: <DashboardPage /> },
           { path: '/mod/requests', element: <RequestsPage /> },
-          { path: '/mod/overdue', element: placeholder('Not yet returned') },
+          { path: '/mod/overdue', element: <OverduePage /> },
           { path: '/mod/items', element: <ItemsPage /> },
           { path: '/mod/items/new', element: <ItemFormPage /> },
           { path: '/mod/items/:code', element: placeholder('Item') },

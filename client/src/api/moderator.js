@@ -1,4 +1,5 @@
 import { api } from './client.js';
+import { reportQuery } from './reports.js';
 
 // M2 Requests, see 02 › "Moderator request and loan shapes".
 export function getWaitingRequests(options) {
@@ -27,4 +28,10 @@ export function declineLoanItem(loanItemId, note) {
 // M1 Dashboard: tiles, lists, items by status and recent activity in one call (MF-31).
 export function getDashboard(options) {
   return api.get('/moderator/dashboard', options);
+}
+
+// M4 Not yet returned (MF-23): one page → { data, total, notYetReturned }.
+// params: { category, room, sort, order, page, pageSize }; empty filters ("All") are left out.
+export function getOverdue(params, options) {
+  return api.get(`/moderator/overdue${reportQuery(params)}`, options);
 }

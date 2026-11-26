@@ -1,6 +1,7 @@
 import { Navigate, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
 import InventoryReport from '../features/reports/InventoryReport.jsx';
+import OverdueReport from '../features/reports/OverdueReport.jsx';
 import ReportsHeader from '../features/reports/ReportsHeader.jsx';
 import { REPORT_TABS } from '../features/reports/reportTabs.js';
 
@@ -16,7 +17,11 @@ export default function ReportsPage() {
     return <InventoryReport />;
   }
 
-  // Not yet returned (MF-23), Loans and Item history (MF-32) are Sprint 2 cards.
+  if (report === 'overdue') {
+    return <OverdueReport />;
+  }
+
+  // Loans and Item history (MF-32) are not built yet.
   return (
     <>
       <ReportsHeader />

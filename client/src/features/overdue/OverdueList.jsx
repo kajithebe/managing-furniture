@@ -1,0 +1,356 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getLookups } from '../../api/lookups.js';
+import { getOverdue } from '../../api/moderator.js';
+import Button from '../../components/ui/Button.jsx';
+import LoadError from '../../components/ui/LoadError.jsx';
+import Select from '../../components/ui/Select.jsx';
+import SortButton from '../../components/ui/SortButton.jsx';
+import Table from '../../components/ui/Table.jsx';
+import Toast from '../../components/ui/Toast.jsx';
+import { ItemName } from '../dashboard/DashboardPanel.jsx';
+import { formatDayClock } from '../dashboard/format.js';
+import Pagination from '../reports/Pagination.jsx';
+import { notifyRequestsChanged } from '../requests/useWaitingCount.js';
+import EmailBorrowerDialog from './EmailBorrowerDialog.jsx';
+import MarkReturnedDialog from './MarkReturnedDialog.jsx';
+import { formatContacted, formatLateBy, overdueMessage } from './overdueText.js';
+
+// M4 Not yet returned: the yellow message, Category and Room filters, a sortable table and
+// paging (25 per page). Rows come from GET /api/moderator/overdue (MF-23).
+const PAGE_SIZE = 25;
+
+// The item that is late the longest comes first, as on M1.
+const DEFAULT_SORT = { column: 'lateBy', order: 'desc' };
+
+const focusRing =
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
+
+// A text button in the Actions column ("Email borrower / Mark returned").
+function ActionLink({ children, ...rest }) {
+  return (
+    <button
+      type="button"
+      className={`rounded text-left text-brand hover:underline disabled:text-muted disabled:no-underline ${focusRing}`}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
+function toOptions(list) {
+  return list.map((entry) => ({ value: String(entry.id), label: entry.name }));
+}
+
+// `key` is also the sort column of the API (GET /moderator/overdue, sort=).
+function columnsFor(now) {
+  return [
+    { key: 'item', label: 'Item', render: (row) => <ItemName row={row} /> },
+    {
+      key: 'borrower',
+      label: 'Borrower',
+      // Name with the email under it; emails are shown only to moderators and admins (01).
+      render: (row) => (
+        <>
+          <span className="block">{row.borrower.name}</span>
+          <span className="block break-all">{row.borrower.email}</span>
+        </>
+      ),
+    },
+    {
+      key: 'due',
+      label: 'Due',
+      render: (row) => <span className="whitespace-nowrap">{formatDayClock(row.dueAt)}</span>,
+    },
+    { key: 'lateBy', label: 'Late by', render: (row) => formatLateBy(row, now) },
+    { key: 'lastRoom', label: 'Last known room', render: (row) => row.lastRoom.name },
+    { key: 'homeRoom', label: 'Home room', render: (row) => row.homeRoom.name },
+    {
+      key: 'lastContacted',
+      label: 'Last contacted',
+      render: (row) => formatContacted(row.lastContactedAt, new Date(now)),
+    },
+  ];
+}
+
+export default function OverdueList() {
+  const [filters, setFilters] = useState({ category: '', room: '' });
+  const [sort, setSort] = useState(DEFAULT_SORT);
+  const [page, setPage] = useState(1);
+  // Counts "Try again" clicks; a new value loads the list again with the same filters.
+  const [attempt, setAttempt] = useState(0);
+  // Counts items marked returned; a new value loads the list again with the same filters.
+  const [changes, setChanges] = useState(0);
+  // The row whose P12 pop-up is open.
+  const [returning, setReturning] = useState(null);
+  // The row whose P11 pop-up is open.
+  const [emailing, setEmailing] = useState(null);
+  const [toast, setToast] = useState('');
+  // Shown when the item was returned meanwhile (e.g. scanned back by the borrower).
+  const [notice, setNotice] = useState('');
+  const [lookups, setLookups] = useState(null);
+  const [lookupsFailed, setLookupsFailed] = useState(false);
+  // The last answer from the API, together with the query and load it belongs to.
+  const [result, setResult] = useState({
+    params: null,
+    loadKey: '',
+    data: [],
+    total: 0,
+    notYetReturned: 0,
+    loadedAt: 0,
+    failed: false,
+  });
+
+  // Dropdown lists: categories, and every room of every campus and building.
+  // Loaded again on "Try again".
+  useEffect(() => {
+    const controller = new AbortController();
+    getLookups({ signal: controller.signal })
+      .then((data) => {
+        setLookups(data);
+        setLookupsFailed(false);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setLookupsFailed(true);
+      });
+    return () => controller.abort();
+  }, [attempt]);
+
+  const params = useMemo(
+    () => ({ ...filters, sort: sort.column, order: sort.order, page, pageSize: PAGE_SIZE }),
+    [filters, sort, page],
+  );
+  // A "Try again" click or a returned item loads the same filters again.
+  const loadKey = `${attempt}-${changes}`;
+  // Loading until the answer for the current filters and the latest load has arrived.
+  const loading = result.params !== params || result.loadKey !== loadKey;
+  const loadFailed = !loading && (result.failed || lookupsFailed);
+
+  // An older request is cancelled, so a slow answer never replaces a newer one.
+  useEffect(() => {
+    const controller = new AbortController();
+    getOverdue(params, { signal: controller.signal })
+      .then(({ data, total, notYetReturned }) => {
+        // The last item on a later page was returned: show the new last page instead.
+        if (data.length === 0 && params.page > 1 && total > 0) {
+          setPage(Math.ceil(total / PAGE_SIZE));
+          return;
+        }
+        setResult({
+          params,
+          loadKey,
+          data,
+          total,
+          notYetReturned,
+          // "Late by" under an hour is counted to the moment the list was loaded.
+          loadedAt: Date.now(),
+          failed: false,
+        });
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          setResult({
+            params,
+            loadKey,
+            data: [],
+            total: 0,
+            notYetReturned: 0,
+            loadedAt: 0,
+            failed: true,
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [params, loadKey]);
+
+  // After P12, or when the item was returned meanwhile: load the list and the side menu
+  // count ("Not yet returned 2") again.
+  function reload() {
+    setChanges((current) => current + 1);
+    notifyRequestsChanged();
+  }
+
+  function handleReturned(row) {
+    setReturning(null);
+    setNotice('');
+    setToast(`${row.name} ${row.code} marked returned`);
+    reload();
+  }
+
+  // Kept stable, because the P11 pop-up uses it in an effect.
+  const handleConflict = useCallback((message) => {
+    setReturning(null);
+    setEmailing(null);
+    setNotice(message);
+    setChanges((current) => current + 1);
+    notifyRequestsChanged();
+  }, []);
+
+  // P11 sent: "Last contacted" shows the new time after the list reloads.
+  function handleSent(row) {
+    setEmailing(null);
+    setNotice('');
+    setToast(`Email sent to ${row.borrower.name}`);
+    setChanges((current) => current + 1);
+  }
+
+  function changeFilter(name, value) {
+    setFilters((current) => ({ ...current, [name]: value }));
+    setPage(1);
+  }
+
+  function changeSort(column) {
+    setSort((current) =>
+      current.column === column
+        ? { column, order: current.order === 'asc' ? 'desc' : 'asc' }
+        : { column, order: 'asc' },
+    );
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setFilters({ category: '', room: '' });
+    setPage(1);
+  }
+
+  const rooms = (lookups?.campuses ?? [])
+    .flatMap((campus) => campus.buildings)
+    .flatMap((building) => building.rooms);
+
+  const tableColumns = [
+    ...columnsFor(result.loadedAt).map((column) => ({
+      key: column.key,
+      header: <SortButton column={column} sort={sort} onSort={changeSort} />,
+      render: column.render,
+    })),
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (row) => (
+        <span>
+          <ActionLink
+            onClick={() => {
+              setToast('');
+              setEmailing(row);
+            }}
+          >
+            Email borrower
+          </ActionLink>
+          <span className="text-muted"> / </span>
+          <ActionLink
+            onClick={() => {
+              setToast('');
+              setReturning(row);
+            }}
+          >
+            Mark returned
+          </ActionLink>
+        </span>
+      ),
+    },
+  ];
+
+  // Shared · Empty Not yet returned: nothing is late at all, so there is no table, only the
+  // filters and the big ✓ (like the empty Requests page).
+  const everythingBack = !loading && !loadFailed && result.notYetReturned === 0;
+
+  // Shared · Empty table: late items exist, but none match the filters.
+  const emptyState = (
+    <div className="py-6">
+      <p className="text-base font-semibold text-ink">No items match these filters.</p>
+      <Button variant="secondary" className="mt-4" onClick={clearFilters}>
+        Clear filters
+      </Button>
+    </div>
+  );
+
+  return (
+    <>
+      {!loadFailed && result.notYetReturned > 0 && (
+        <p role="status" className="mt-6 rounded-card bg-warn-bg px-4 py-3 text-sm text-warn">
+          ! {overdueMessage(result.notYetReturned)}
+        </p>
+      )}
+
+      {notice && (
+        <p role="alert" className="mt-4 rounded-card bg-danger-bg px-4 py-3 text-sm text-danger">
+          ! {notice}
+        </p>
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        <Select
+          id="overdue-category"
+          label="Category"
+          placeholder="All"
+          options={toOptions(lookups?.categories ?? [])}
+          value={filters.category}
+          onChange={(event) => changeFilter('category', event.target.value)}
+        />
+        <Select
+          id="overdue-room"
+          label="Room"
+          placeholder="All"
+          options={toOptions(rooms)}
+          value={filters.room}
+          onChange={(event) => changeFilter('room', event.target.value)}
+        />
+      </div>
+
+      {loadFailed && (
+        <LoadError className="mt-4" onRetry={() => setAttempt((current) => current + 1)} />
+      )}
+
+      {everythingBack && (
+        <div className="py-12 text-center">
+          <p aria-hidden="true" className="text-3xl text-brand">
+            ✓
+          </p>
+          <p className="mt-2 text-lg font-semibold text-ink">
+            Everything is back where it belongs.
+          </p>
+        </div>
+      )}
+
+      {!loadFailed && !everythingBack && (
+        <div aria-busy={loading} className={`mt-4 ${loading ? 'opacity-60' : ''}`}>
+          <Table
+            caption="Not yet returned"
+            columns={tableColumns}
+            rows={result.data}
+            emptyText={loading ? 'Loading…' : emptyState}
+            footer={
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={result.total}
+                onPageChange={setPage}
+              />
+            }
+          />
+        </div>
+      )}
+
+      {/* 03: the toast appears under the list. */}
+      <Toast className="mt-4" message={toast} onDismiss={() => setToast('')} />
+
+      {emailing && (
+        <EmailBorrowerDialog
+          row={emailing}
+          onClose={() => setEmailing(null)}
+          onSent={handleSent}
+          onConflict={handleConflict}
+        />
+      )}
+
+      {returning && (
+        <MarkReturnedDialog
+          row={returning}
+          onClose={() => setReturning(null)}
+          onReturned={handleReturned}
+          onConflict={handleConflict}
+        />
+      )}
+    </>
+  );
+}

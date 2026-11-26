@@ -1,4 +1,5 @@
 import { api } from './client.js';
+import { reportQuery } from './reports.js';
 
 // M2 Requests, see 02 › "Moderator request and loan shapes".
 export function getWaitingRequests(options) {
@@ -27,4 +28,30 @@ export function declineLoanItem(loanItemId, note) {
 // M1 Dashboard: tiles, lists, items by status and recent activity in one call (MF-31).
 export function getDashboard(options) {
   return api.get('/moderator/dashboard', options);
+}
+
+// M4 Not yet returned (MF-23): one page → { data, total, notYetReturned }.
+// params: { category, room, sort, order, page, pageSize }; empty filters ("All") are left out.
+export function getOverdue(params, options) {
+  return api.get(`/moderator/overdue${reportQuery(params)}`, options);
+}
+
+// P12 Mark returned (MF-23): a moderator confirms one item is back in its home room.
+// The note is optional (max 500) and goes into the item's history.
+// → { id, status, code, name, category, returnedAt, returnMethod, returnedBy, note, loan }
+export function markLoanItemReturned(loanItemId, note) {
+  return api.post(
+    `/moderator/loan-items/${encodeURIComponent(loanItemId)}/mark-returned`,
+    note ? { note } : {},
+  );
+}
+
+// P11 Email borrower (MF-23): the read-only preview → { to, subject, message }.
+export function getContactPreview(loanItemId, options) {
+  return api.get(`/moderator/loan-items/${encodeURIComponent(loanItemId)}/contact`, options);
+}
+
+// P11 "Send email": emails the borrower and saves Last contacted → { id, lastContactedAt }.
+export function contactBorrower(loanItemId) {
+  return api.post(`/moderator/loan-items/${encodeURIComponent(loanItemId)}/contact`, {});
 }

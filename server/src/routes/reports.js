@@ -2,11 +2,14 @@
 // requireRole('MODERATOR') also lets admins through. Students get 403, no session 401.
 // GET /api/reports/inventory              M9 Inventory tab → { data, total } for one page
 // GET /api/reports/inventory?format=csv   the same filters → all matching items as a CSV file
+// GET /api/reports/overdue                M9 Not yet returned tab → { data, total, notYetReturned }
+// GET /api/reports/overdue?format=csv     the same filters → all matching rows as a CSV file
 import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { SHOWN_STATUSES, SORT_COLUMNS } from '../services/itemService.js';
+import { OVERDUE_SORT_COLUMNS, listOverdue, overdueCsv } from '../services/overdueService.js';
 import { inventoryCsv, inventoryReport } from '../services/reportService.js';
 
 export const reportsRouter = Router();
@@ -48,4 +51,30 @@ reportsRouter.get('/inventory', async (req, res) => {
   }
 
   res.json(await inventoryReport(filters));
+});
+
+// The M9 Not yet returned filters (Category, Room), sort arrows and paging: the same as the
+// M4 list (GET /api/moderator/overdue), so both show the same rows.
+const overdueQuery = z.object({
+  category: queryId,
+  room: queryId,
+  sort: z.enum(OVERDUE_SORT_COLUMNS).default('lateBy'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  format: z.enum(['csv']).optional(),
+});
+
+reportsRouter.get('/overdue', async (req, res) => {
+  const { format, ...filters } = overdueQuery.parse(req.query);
+
+  if (format === 'csv') {
+    const csv = await overdueCsv(filters);
+    res.attachment(`not-yet-returned-${today()}.csv`);
+    res.type('text/csv; charset=utf-8');
+    res.send(csv);
+    return;
+  }
+
+  res.json(await listOverdue(filters));
 });

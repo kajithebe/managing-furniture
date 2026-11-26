@@ -6,6 +6,7 @@ import Button from '../components/ui/Button.jsx';
 import Card from '../components/ui/Card.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import ChangeStatusDialog from '../features/items/ChangeStatusDialog.jsx';
+import RoomActionDialog from '../features/items/RoomActionDialog.jsx';
 import { roomPath, wheelsText } from '../features/items/itemText.js';
 import { formatClock } from '../features/requests/format.js';
 
@@ -104,7 +105,11 @@ function CurrentLoanCard({ item }) {
 // M7 "More actions" (MF-29): each opens a pop-up that asks for a reason. Shown only while
 // the item is not on loan, as in M7 (status and current room wait for the return).
 function MoreActionsCard({ onAction }) {
-  const actions = [['status', 'Change status']];
+  const actions = [
+    ['status', 'Change status'],
+    ['location', 'Correct location'],
+    ['home', 'Change home room'],
+  ];
   return (
     <Card>
       <h2 className="text-base font-semibold text-ink">More actions</h2>
@@ -129,7 +134,7 @@ function MoreActionsCard({ onAction }) {
 function ItemView({ item, onChange }) {
   const navigate = useNavigate();
   const code = encodeURIComponent(item.code);
-  // The open pop-up: 'status' or null.
+  // The open pop-up: 'status', 'location', 'home' or null.
   const [action, setAction] = useState(null);
 
   function saved(updated) {
@@ -164,6 +169,14 @@ function ItemView({ item, onChange }) {
 
       {action === 'status' && (
         <ChangeStatusDialog item={item} onSaved={saved} onClose={() => setAction(null)} />
+      )}
+      {(action === 'location' || action === 'home') && (
+        <RoomActionDialog
+          action={action}
+          item={item}
+          onSaved={saved}
+          onClose={() => setAction(null)}
+        />
       )}
     </>
   );

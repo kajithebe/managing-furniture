@@ -6,7 +6,8 @@ import { dueInfo, homeRoomNames, itemBadgeStatus, returnableItems } from './loan
 
 // S7 My loans: one open loan.
 // Title "In D751 · Group work", the due line, the home room(s), then one row per item,
-// and "Return items" (MF-27) when the student still has at least one item of this loan.
+// and "Return items" (MF-27, secondary button) when the student still has at least one item of
+// this loan (Approved or Not yet returned).
 // `now` is passed in by the page, so all cards use the same time.
 export default function LoanCard({ loan, now }) {
   const navigate = useNavigate();
@@ -46,7 +47,12 @@ export default function LoanCard({ loan, now }) {
       </ul>
 
       {canReturn && (
-        <Button fullWidth className="mt-2" onClick={() => navigate(`/return/${loan.id}`)}>
+        <Button
+          variant="secondary"
+          fullWidth
+          className="mt-2"
+          onClick={() => navigate(`/return/${loan.id}`)}
+        >
           Return items
         </Button>
       )}

@@ -24,7 +24,6 @@ const ORIGIN = 'http://localhost:5173';
 const D569 = { id: 1, name: 'D569' };
 const D751 = { id: 2, name: 'D751' };
 const mikko = { id: 9, name: 'Mikko Laine' };
-const aino = { id: 7, name: 'Aino Virtanen' };
 
 function sessionCookie(userId) {
   const res = {
@@ -36,28 +35,22 @@ function sessionCookie(userId) {
   return res.value;
 }
 
-// The logged-in moderator (id 9); any other id is Aino, who scanned items back herself.
 function loginAs(role) {
-  prisma.user.findUnique.mockImplementation(({ where }) =>
-    Promise.resolve(
-      where.id === mikko.id
-        ? { ...mikko, email: 'mikko.laine@metropolia.fi', role, active: true }
-        : aino,
-    ),
-  );
+  prisma.user.findUnique.mockResolvedValue({
+    ...mikko,
+    email: 'mikko.laine@metropolia.fi',
+    role,
+    active: true,
+  });
   return sessionCookie(mikko.id);
 }
 
 // LoanItem 31: Chair MP-00126 of loan 4, not yet returned, still in D751; home room D569.
-function loanItemRow(status = 'OVERDUE', returned = {}) {
+function loanItemRow(status = 'OVERDUE') {
   return {
     id: 31,
     status,
     loanId: 4,
-    returnedAt: null,
-    returnMethod: null,
-    returnedById: null,
-    ...returned,
     item: {
       id: 126,
       code: 'MP-00126',
@@ -167,39 +160,29 @@ describe('POST /api/moderator/loan-items/:id/mark-returned', () => {
     });
   });
 
-  it('accepts an item that is already returned, without a second event', async () => {
-    const returnedAt = new Date('2026-11-10T09:00:00Z');
-    prisma.loanItem.findUnique.mockResolvedValue(
-      loanItemRow('RETURNED', { returnedAt, returnMethod: 'SCAN', returnedById: 7 }),
-    );
-    prisma.loan.findUnique.mockResolvedValue({ status: 'CLOSED' });
+  it('refuses an item that is already returned, without a second event', async () => {
+    prisma.loanItem.findUnique.mockResolvedValue(loanItemRow('RETURNED'));
 
     const res = await post(31, {});
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      status: 'RETURNED',
-      returnedAt: returnedAt.toISOString(),
-      returnMethod: 'SCAN',
-      returnedBy: aino,
-      note: null,
-      loan: { id: 4, status: 'CLOSED' },
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({
+      code: 'ALREADY_RETURNED',
+      message: 'This item is already returned',
+      itemCode: 'MP-00126',
     });
     expect(prisma.loanItem.updateMany).not.toHaveBeenCalled();
     expect(prisma.itemEvent.create).not.toHaveBeenCalled();
   });
 
-  it('shows the item as it is when a scan was quicker', async () => {
+  it('refuses the item when a scan was quicker', async () => {
     prisma.loanItem.updateMany.mockResolvedValue({ count: 0 });
-    prisma.loanItem.findUnique
-      .mockResolvedValueOnce(loanItemRow())
-      .mockResolvedValueOnce(loanItemRow('RETURNED', { returnMethod: 'SCAN', returnedById: 7 }));
-    prisma.loan.findUnique.mockResolvedValue({ status: 'CLOSED' });
 
     const res = await post(31, {});
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ returnMethod: 'SCAN', loan: { id: 4, status: 'CLOSED' } });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ALREADY_RETURNED');
+    expect(prisma.item.update).not.toHaveBeenCalled();
     expect(prisma.itemEvent.create).not.toHaveBeenCalled();
   });
 
@@ -216,7 +199,7 @@ describe('POST /api/moderator/loan-items/:id/mark-returned', () => {
     prisma.loanItem.findUnique.mockResolvedValue(loanItemRow('DECLINED'));
     res = await post(31, {});
     expect(res.status).toBe(409);
-    expect(res.body.error.message).toBe('MP-00126 was declined');
+    expect(res.body.error.message).toBe("MP-00126 was declined, so it isn't on loan");
     expect(prisma.loanItem.updateMany).not.toHaveBeenCalled();
   });
 

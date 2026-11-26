@@ -103,9 +103,6 @@ const markReturnedFields = {
   id: true,
   status: true,
   loanId: true,
-  returnedAt: true,
-  returnMethod: true,
-  returnedById: true,
   item: {
     select: {
       id: true,
@@ -118,49 +115,19 @@ const markReturnedFields = {
   },
 };
 
-// The reply for M4 and M7: the item, how and by whom it was returned, and whether the loan is
-// now closed. Same idea as the reply of approve / decline.
-function markReturnedView(loanItem, returnedBy, note, loanStatus) {
-  return {
-    id: loanItem.id,
-    status: 'RETURNED',
-    code: loanItem.item.code,
-    name: loanItem.item.name,
-    category: loanItem.item.category.name,
-    returnedAt: loanItem.returnedAt,
-    returnMethod: loanItem.returnMethod,
-    returnedBy,
-    note,
-    loan: { id: loanItem.loanId, status: loanStatus },
-  };
-}
-
-// An item that is already returned: nothing changes, the reply shows how it was returned.
-// The note of the earlier return is in the item's history, not repeated here.
-async function currentView(tx, loanItemId) {
-  const loanItem = await tx.loanItem.findUnique({
-    where: { id: loanItemId },
-    select: markReturnedFields,
+// 02 › Not yet returned: e.g. the student scanned the item back a moment before.
+function alreadyReturned(code) {
+  return new AppError(409, 'ALREADY_RETURNED', 'This item is already returned', {
+    itemCode: code,
   });
-  const [loan, returnedBy] = await Promise.all([
-    tx.loan.findUnique({ where: { id: loanItem.loanId }, select: { status: true } }),
-    loanItem.returnedById
-      ? tx.user.findUnique({
-          where: { id: loanItem.returnedById },
-          select: { id: true, name: true },
-        })
-      : null,
-  ]);
-  return markReturnedView(loanItem, returnedBy, null, loan.status);
 }
 
 // POST /api/moderator/loan-items/:id/mark-returned (MF-23, P12): a moderator confirms that
 // one item is back, e.g. "Found in D751, moved back by caretaker". Works for items that are
 // on loan or not yet returned. Same result as a scan (02 › Loan item rules): RETURNED with
 // method MODERATOR, the item is free again and back in its home room, its condition is kept.
-// The note goes into the item's history (MARKED_RETURNED event). An item that is already
-// returned (e.g. a double click, or the borrower scanned it meanwhile) is accepted without a
-// second event, like a double scan.
+// The note goes into the item's history (MARKED_RETURNED event).
+// The reply is for M4 and M7: the item, who returned it, and whether the loan is now closed.
 export async function markReturned(loanItemId, moderator, { note }) {
   const returnedAt = new Date();
 
@@ -179,16 +146,16 @@ export async function markReturned(loanItemId, moderator, { note }) {
       });
     }
     if (loanItem.status === 'DECLINED') {
-      throw new AppError(409, 'ITEM_NOT_ON_LOAN', `${code} was declined`, { itemCode: code });
+      throw new AppError(409, 'ITEM_NOT_ON_LOAN', `${code} was declined, so it isn't on loan`, {
+        itemCode: code,
+      });
     }
-
     if (!isReturnable(loanItem)) {
-      return currentView(tx, loanItem.id);
+      throw alreadyReturned(code);
     }
 
-    // Only an item that is still on loan changes, so a scan at the same moment cannot make
-    // it returned twice (returnItems uses the same check). If the scan was quicker, the item
-    // is shown as it is now.
+    // Only an item that is still on loan changes, so a scan at the same moment cannot be
+    // overwritten (returnItems uses the same check). If the scan was quicker: already returned.
     const { count } = await tx.loanItem.updateMany({
       where: { id: loanItem.id, status: { in: ['APPROVED', 'OVERDUE'] } },
       data: {
@@ -199,7 +166,7 @@ export async function markReturned(loanItemId, moderator, { note }) {
       },
     });
     if (count === 0) {
-      return currentView(tx, loanItem.id);
+      throw alreadyReturned(code);
     }
 
     await tx.item.update({
@@ -232,11 +199,17 @@ export async function markReturned(loanItemId, moderator, { note }) {
       loanStatus = 'CLOSED';
     }
 
-    return markReturnedView(
-      { ...loanItem, returnedAt, returnMethod: 'MODERATOR' },
-      { id: moderator.id, name: moderator.name },
-      note ?? null,
-      loanStatus,
-    );
+    return {
+      id: loanItem.id,
+      status: 'RETURNED',
+      code,
+      name: loanItem.item.name,
+      category: loanItem.item.category.name,
+      returnedAt,
+      returnMethod: 'MODERATOR',
+      returnedBy: { id: moderator.id, name: moderator.name },
+      note: note ?? null,
+      loan: { id: loanItem.loanId, status: loanStatus },
+    };
   });
 }

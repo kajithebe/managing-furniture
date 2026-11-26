@@ -18,6 +18,7 @@ import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
 import RequestSentPage from './pages/RequestSentPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
 import RequestsPage from './pages/RequestsPage.jsx';
 import ReturnPage from './pages/ReturnPage.jsx';
@@ -77,7 +78,7 @@ export const router = createBrowserRouter([
           {
             element: <RequireAuth roles={ADMIN_ONLY} />,
             children: [
-              { path: '/admin/settings/:tab', element: placeholder('Settings') },
+              { path: '/admin/settings/:tab', element: <SettingsPage /> },
               { path: '/admin/users', element: <UsersPage /> },
             ],
           },

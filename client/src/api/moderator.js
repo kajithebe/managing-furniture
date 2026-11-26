@@ -35,3 +35,13 @@ export function getDashboard(options) {
 export function getOverdue(params, options) {
   return api.get(`/moderator/overdue${reportQuery(params)}`, options);
 }
+
+// P12 Mark returned (MF-23): a moderator confirms one item is back in its home room.
+// The note is optional (max 500) and goes into the item's history.
+// → { id, status, code, name, category, returnedAt, returnMethod, returnedBy, note, loan }
+export function markLoanItemReturned(loanItemId, note) {
+  return api.post(
+    `/moderator/loan-items/${encodeURIComponent(loanItemId)}/mark-returned`,
+    note ? { note } : {},
+  );
+}

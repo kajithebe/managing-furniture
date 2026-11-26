@@ -6,9 +6,12 @@ import LoadError from '../../components/ui/LoadError.jsx';
 import Select from '../../components/ui/Select.jsx';
 import SortButton from '../../components/ui/SortButton.jsx';
 import Table from '../../components/ui/Table.jsx';
+import Toast from '../../components/ui/Toast.jsx';
 import { ItemName } from '../dashboard/DashboardPanel.jsx';
 import { formatDayClock } from '../dashboard/format.js';
 import Pagination from '../reports/Pagination.jsx';
+import { notifyRequestsChanged } from '../requests/useWaitingCount.js';
+import MarkReturnedDialog from './MarkReturnedDialog.jsx';
 import { formatContacted, formatLateBy, overdueMessage } from './overdueText.js';
 
 // M4 Not yet returned: the yellow message, Category and Room filters, a sortable table and
@@ -75,12 +78,19 @@ export default function OverdueList() {
   const [page, setPage] = useState(1);
   // Counts "Try again" clicks; a new value loads the list again with the same filters.
   const [attempt, setAttempt] = useState(0);
+  // Counts items marked returned; a new value loads the list again with the same filters.
+  const [changes, setChanges] = useState(0);
+  // The row whose P12 pop-up is open.
+  const [returning, setReturning] = useState(null);
+  const [toast, setToast] = useState('');
+  // Shown when the item was returned meanwhile (e.g. scanned back by the borrower).
+  const [notice, setNotice] = useState('');
   const [lookups, setLookups] = useState(null);
   const [lookupsFailed, setLookupsFailed] = useState(false);
   // The last answer from the API, together with the query and load it belongs to.
   const [result, setResult] = useState({
     params: null,
-    attempt: -1,
+    loadKey: '',
     data: [],
     total: 0,
     notYetReturned: 0,
@@ -107,31 +117,38 @@ export default function OverdueList() {
     () => ({ ...filters, sort: sort.column, order: sort.order, page, pageSize: PAGE_SIZE }),
     [filters, sort, page],
   );
-  // Loading until the answer for the current filters and the latest "Try again" has arrived.
-  const loading = result.params !== params || result.attempt !== attempt;
+  // A "Try again" click or a returned item loads the same filters again.
+  const loadKey = `${attempt}-${changes}`;
+  // Loading until the answer for the current filters and the latest load has arrived.
+  const loading = result.params !== params || result.loadKey !== loadKey;
   const loadFailed = !loading && (result.failed || lookupsFailed);
 
   // An older request is cancelled, so a slow answer never replaces a newer one.
   useEffect(() => {
     const controller = new AbortController();
     getOverdue(params, { signal: controller.signal })
-      .then(({ data, total, notYetReturned }) =>
+      .then(({ data, total, notYetReturned }) => {
+        // The last item on a later page was returned: show the new last page instead.
+        if (data.length === 0 && params.page > 1 && total > 0) {
+          setPage(Math.ceil(total / PAGE_SIZE));
+          return;
+        }
         setResult({
           params,
-          attempt,
+          loadKey,
           data,
           total,
           notYetReturned,
           // "Late by" under an hour is counted to the moment the list was loaded.
           loadedAt: Date.now(),
           failed: false,
-        }),
-      )
+        });
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') {
           setResult({
             params,
-            attempt,
+            loadKey,
             data: [],
             total: 0,
             notYetReturned: 0,
@@ -141,7 +158,27 @@ export default function OverdueList() {
         }
       });
     return () => controller.abort();
-  }, [params, attempt]);
+  }, [params, loadKey]);
+
+  // After P12, or when the item was returned meanwhile: load the list and the side menu
+  // count ("Not yet returned 2") again.
+  function reload() {
+    setChanges((current) => current + 1);
+    notifyRequestsChanged();
+  }
+
+  function handleReturned(row) {
+    setReturning(null);
+    setNotice('');
+    setToast(`${row.name} ${row.code} marked returned`);
+    reload();
+  }
+
+  function handleConflict(message) {
+    setReturning(null);
+    setNotice(message);
+    reload();
+  }
 
   function changeFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }));
@@ -175,12 +212,19 @@ export default function OverdueList() {
     {
       key: 'actions',
       header: 'Actions',
-      // TODO: Mark returned opens P12 in step 4b; Email borrower opens P11 when MF-20 is merged.
-      render: () => (
+      // TODO: Email borrower opens P11 when MF-20 is merged.
+      render: (row) => (
         <span>
           <ActionLink disabled>Email borrower</ActionLink>
           <span className="text-muted"> / </span>
-          <ActionLink disabled>Mark returned</ActionLink>
+          <ActionLink
+            onClick={() => {
+              setToast('');
+              setReturning(row);
+            }}
+          >
+            Mark returned
+          </ActionLink>
         </span>
       ),
     },
@@ -206,6 +250,12 @@ export default function OverdueList() {
       {!loadFailed && result.notYetReturned > 0 && (
         <p role="status" className="mt-6 rounded-card bg-warn-bg px-4 py-3 text-sm text-warn">
           ! {overdueMessage(result.notYetReturned)}
+        </p>
+      )}
+
+      {notice && (
+        <p role="alert" className="mt-4 rounded-card bg-danger-bg px-4 py-3 text-sm text-danger">
+          ! {notice}
         </p>
       )}
 
@@ -247,6 +297,18 @@ export default function OverdueList() {
             }
           />
         </div>
+      )}
+
+      {/* 03: the toast appears under the list. */}
+      <Toast className="mt-4" message={toast} onDismiss={() => setToast('')} />
+
+      {returning && (
+        <MarkReturnedDialog
+          row={returning}
+          onClose={() => setReturning(null)}
+          onReturned={handleReturned}
+          onConflict={handleConflict}
+        />
       )}
     </>
   );

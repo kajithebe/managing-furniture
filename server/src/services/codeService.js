@@ -5,6 +5,7 @@
 // as the item insert, so two moderators adding items at once never get the same number.
 // A new scheme only changes the codes of items created afterwards.
 import { z } from 'zod';
+import { env } from '../config/env.js';
 import { AppError } from '../middleware/error.js';
 
 const SETTINGS_ID = 1;
@@ -96,6 +97,44 @@ export function longestCodeLength(scheme, lengths) {
   return sizes.reduce((sum, size) => sum + size, 0) + separators;
 }
 
+// Campus, category and year are in every item's code when the scheme uses them; brand and
+// colour are optional (an item without a brand gets no brand part).
+const REQUIRED_PARTS = ['campus', 'category', 'year'];
+
+// True when every part the scheme needs is known. On M6 the campus and category are only
+// known after the moderator has chosen a category and a home room.
+function hasRequiredParts(scheme, parts) {
+  return scheme.segments.every(
+    (segment) => !REQUIRED_PARTS.includes(segment.type) || Boolean(parts[segment.type]),
+  );
+}
+
+// The parts of an item's code from its own data: the short codes of its category, the campus
+// of its home room, its brand and colour, and the year it is added (Helsinki time, TZ).
+// `ids` = { categoryId, homeRoomId, brandId, colourId }; a missing or unknown id gives null.
+export async function itemCodeParts(db, ids, date = new Date()) {
+  const { categoryId, homeRoomId, brandId, colourId } = ids;
+  const code = { select: { code: true } };
+  const [category, room, brand, colour] = await Promise.all([
+    categoryId ? db.category.findUnique({ where: { id: categoryId }, ...code }) : null,
+    homeRoomId
+      ? db.room.findUnique({
+          where: { id: homeRoomId },
+          select: { building: { select: { campus: code } } },
+        })
+      : null,
+    brandId ? db.brand.findUnique({ where: { id: brandId }, ...code }) : null,
+    colourId ? db.colour.findUnique({ where: { id: colourId }, ...code }) : null,
+  ]);
+  return {
+    campus: room?.building.campus.code ?? null,
+    category: category?.code ?? null,
+    brand: brand?.code ?? null,
+    colour: colour?.code ?? null,
+    year: yearPart(date, env.TZ),
+  };
+}
+
 // Turns one running number into a code, e.g. 1 → "MP-00001", or 124 with
 // parts { campus: 'KAR', category: 'CHR' } → "KAR-CHR-00124".
 // `parts` holds the item's short codes and year: { campus, category, brand, colour, year }.
@@ -163,7 +202,8 @@ export async function nextCode(tx, parts = {}) {
 // The codes the next `quantity` new items will get, for the preview on M6:
 // "Next code: MP-00127" (quantity 1, first = last) or "Codes: MP-00127 – MP-00156".
 // Read only: it does not use up numbers, so the real codes can differ if someone
-// else saves an item first.
+// else saves an item first. While the form still lacks a part the scheme needs (e.g. no
+// category chosen yet for KAR-CHR-00012), first and last are null and M6 shows no code.
 export async function previewCodes(db, quantity = 1, parts = {}) {
   const setting = await db.setting.findUnique({
     where: { id: SETTINGS_ID },
@@ -171,6 +211,9 @@ export async function previewCodes(db, quantity = 1, parts = {}) {
   });
   if (!setting) {
     throw new AppError(500, 'SETTINGS_MISSING', 'Settings are missing. Run the seed.');
+  }
+  if (!hasRequiredParts(setting.codeScheme, parts)) {
+    return { first: null, last: null };
   }
   return {
     first: buildCode(setting.codeScheme, setting.nextNumber, parts),

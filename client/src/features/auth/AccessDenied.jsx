@@ -4,7 +4,10 @@ import { useAuth } from '../../hooks/useAuth.js';
 import { homePathFor } from './returnTo.js';
 
 const TITLE = "You don't have access to this page";
+// A student opens a moderator page (phone); a moderator can only be blocked on an admin page
+// (Settings, Users), because every other desktop page is open to moderators.
 const TEXT = 'This page is only for moderators and admins.';
+const ADMIN_ONLY_TEXT = 'This page is only for admins.';
 
 export default function AccessDenied() {
   const { user } = useAuth();
@@ -29,7 +32,7 @@ export default function AccessDenied() {
     <div className="flex flex-col">
       <h1 className="text-[28px] font-semibold leading-tight text-ink">{TITLE}</h1>
       <div className="mt-5 rounded-card border border-line bg-surface p-5">
-        <p className="text-[15px] text-ink">{TEXT}</p>
+        <p className="text-[15px] text-ink">{ADMIN_ONLY_TEXT}</p>
         <Button variant="secondary" className="mt-3" onClick={goHome}>
           Back to dashboard
         </Button>

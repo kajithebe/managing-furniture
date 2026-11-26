@@ -5,6 +5,7 @@ import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import Card from '../components/ui/Card.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
+import ChangeStatusDialog from '../features/items/ChangeStatusDialog.jsx';
 import { roomPath, wheelsText } from '../features/items/itemText.js';
 import { formatClock } from '../features/requests/format.js';
 
@@ -100,9 +101,41 @@ function CurrentLoanCard({ item }) {
   );
 }
 
-function ItemView({ item }) {
+// M7 "More actions" (MF-29): each opens a pop-up that asks for a reason. Shown only while
+// the item is not on loan, as in M7 (status and current room wait for the return).
+function MoreActionsCard({ onAction }) {
+  const actions = [['status', 'Change status']];
+  return (
+    <Card>
+      <h2 className="text-base font-semibold text-ink">More actions</h2>
+      <ul className="mt-2">
+        {actions.map(([action, label]) => (
+          <li key={action}>
+            <button
+              type="button"
+              onClick={() => onAction(action)}
+              className={`min-h-11 text-[15px] font-semibold text-brand hover:underline ${focusRing}`}
+            >
+              {label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+// onChange(item) puts the item from the server on the page after an action.
+function ItemView({ item, onChange }) {
   const navigate = useNavigate();
   const code = encodeURIComponent(item.code);
+  // The open pop-up: 'status' or null.
+  const [action, setAction] = useState(null);
+
+  function saved(updated) {
+    onChange(updated);
+    setAction(null);
+  }
 
   return (
     <>
@@ -124,8 +157,14 @@ function ItemView({ item }) {
 
       <div className="mt-6 grid grid-cols-2 items-start gap-6">
         <DetailsCard item={item} />
-        <div className="flex flex-col gap-6">{item.onLoan && <CurrentLoanCard item={item} />}</div>
+        <div className="flex flex-col gap-6">
+          {item.onLoan ? <CurrentLoanCard item={item} /> : <MoreActionsCard onAction={setAction} />}
+        </div>
       </div>
+
+      {action === 'status' && (
+        <ChangeStatusDialog item={item} onSaved={saved} onClose={() => setAction(null)} />
+      )}
     </>
   );
 }
@@ -173,5 +212,10 @@ export default function ModItemPage() {
       </>
     );
   }
-  return <ItemView item={item} />;
+  return (
+    <ItemView
+      item={item}
+      onChange={(updated) => setResult((current) => ({ ...current, item: updated }))}
+    />
+  );
 }

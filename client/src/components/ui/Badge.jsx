@@ -7,6 +7,8 @@ const STYLES = {
   declined: { text: 'Declined', classes: 'bg-danger-bg text-danger' },
   overdue: { text: 'Not yet returned', classes: 'bg-danger-bg text-danger' },
   returned: { text: 'Returned ✓', classes: 'bg-subtle-2 text-muted' },
+  // S9 return list: item of the loan that is not scanned back yet (MF-27)
+  notScanned: { text: '— Not scanned yet', classes: 'bg-subtle-2 text-ink' },
   // Item statuses (03)
   available: { text: 'Available', classes: 'bg-brand-tint text-brand' },
   onLoan: { text: 'On loan', classes: 'bg-subtle-2 text-ink' },

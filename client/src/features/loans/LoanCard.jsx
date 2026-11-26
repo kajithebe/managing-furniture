@@ -1,14 +1,20 @@
+import { useNavigate } from 'react-router-dom';
 import Badge from '../../components/ui/Badge.jsx';
+import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
-import { dueInfo, homeRoomNames, itemBadgeStatus } from './loanFormat.js';
+import { dueInfo, homeRoomNames, itemBadgeStatus, returnableItems } from './loanFormat.js';
 
 // S7 My loans: one open loan.
-// Title "In D751 · Group work", the due line, the home room(s), then one row per item.
+// Title "In D751 · Group work", the due line, the home room(s), then one row per item,
+// and "Return items" (MF-27, secondary button) when the student still has at least one item of
+// this loan (Approved or Not yet returned).
 // `now` is passed in by the page, so all cards use the same time.
 export default function LoanCard({ loan, now }) {
+  const navigate = useNavigate();
   const due = dueInfo(loan.dueAt, now);
   const homeRooms = homeRoomNames(loan.items);
   const title = loan.reason ? `In ${loan.toRoom.name} · ${loan.reason}` : `In ${loan.toRoom.name}`;
+  const canReturn = returnableItems(loan.items).length > 0;
 
   return (
     <Card as="article">
@@ -39,6 +45,17 @@ export default function LoanCard({ loan, now }) {
           </li>
         ))}
       </ul>
+
+      {canReturn && (
+        <Button
+          variant="secondary"
+          fullWidth
+          className="mt-2"
+          onClick={() => navigate(`/return/${loan.id}`)}
+        >
+          Return items
+        </Button>
+      )}
     </Card>
   );
 }

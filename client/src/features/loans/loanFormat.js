@@ -113,3 +113,10 @@ export function recentTitle(loan) {
   const day = formatDay(loan.closedAt ?? loan.createdAt);
   return `${day} · ${countItems(loan.items.length)} · ${allDeclined ? 'declined' : 'returned'}`;
 }
+// Items the borrower still has (same rule as the server, MF-19 returnRules.js):
+// only these can be scanned back. PENDING, DECLINED and RETURNED items are skipped.
+const RETURNABLE = ['APPROVED', 'OVERDUE'];
+
+export function returnableItems(items) {
+  return items.filter((item) => RETURNABLE.includes(item.status));
+}

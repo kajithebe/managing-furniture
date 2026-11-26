@@ -19,6 +19,7 @@ import ReportsPage from './pages/ReportsPage.jsx';
 import RequestSentPage from './pages/RequestSentPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
 import RequestsPage from './pages/RequestsPage.jsx';
+import ReturnPage from './pages/ReturnPage.jsx';
 
 // Routes from 02-architecture-and-data-model.md › Frontend routes.
 // Each card replaces its placeholder with the real page.
@@ -47,7 +48,7 @@ export const router = createBrowserRouter([
           { path: '/borrow', element: <BorrowPage /> },
           { path: '/borrow/sent', element: <RequestSentPage /> },
           { path: '/loans', element: <MyLoansPage /> },
-          { path: '/return/:loanId', element: placeholder('Return items') },
+          { path: '/return/:loanId', element: <ReturnPage /> },
           { path: '/r/:qrToken', element: placeholder('Room') },
           { path: '/profile', element: <ProfilePage /> },
         ],

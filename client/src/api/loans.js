@@ -14,3 +14,10 @@ export function getMyLoans(options) {
 export function createLoan(body) {
   return api.post('/loans', body);
 }
+
+// S9 Return: POST /api/loans/:id/return → the loan (same shape as above).
+// body: { roomQrToken, itemCodes } after a scanned door QR, or { roomId, itemCodes } after
+// "Type the room instead" (exactly one of the two). Errors: 02 › Return; show error.message.
+export function returnItems(loanId, body) {
+  return api.post(`/loans/${encodeURIComponent(loanId)}/return`, body);
+}

@@ -14,6 +14,18 @@ export function notReturnedItems(listItems) {
   return listItems.filter((item) => item.status !== 'RETURNED');
 }
 
+// Ids of the items that are already back when step 2 starts (earlier visits, other rooms).
+export function returnedIds(items) {
+  return items.filter((item) => item.status === 'RETURNED').map((item) => item.id);
+}
+
+// Items returned during this visit: RETURNED now, but not yet when step 2 started.
+export function returnedThisVisit(listItems, alreadyBackIds) {
+  return listItems.filter(
+    (item) => item.status === 'RETURNED' && !alreadyBackIds.includes(item.id),
+  );
+}
+
 // S9 "3 of 5 scanned".
 export function scannedText(listItems) {
   const scanned = listItems.length - notReturnedItems(listItems).length;

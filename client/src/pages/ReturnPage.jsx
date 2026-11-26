@@ -8,7 +8,11 @@ import ReturnDoneStep from '../features/return/ReturnDoneStep.jsx';
 import ReturnItemsStep from '../features/return/ReturnItemsStep.jsx';
 import ReturnRoomStep from '../features/return/ReturnRoomStep.jsx';
 import ReturnStep from '../features/return/ReturnStep.jsx';
-import { notReturnedItems, returnListItems } from '../features/return/returnFormat.js';
+import {
+  returnedIds,
+  returnedThisVisit,
+  returnListItems,
+} from '../features/return/returnFormat.js';
 
 const TITLE = 'Return items';
 
@@ -23,7 +27,8 @@ export default function ReturnPage() {
   const [attempt, setAttempt] = useState(0);
   const requestKey = `${loanId}#${attempt}`;
   const [result, setResult] = useState({ key: null, loan: null, failed: false });
-  // The home room checked in step 1: { room: { id, name }, roomRef: { roomQrToken } | { roomId } }.
+  // The home room checked in step 1: { room: { id, name }, roomRef: { roomQrToken } | { roomId },
+  // alreadyBackIds }. alreadyBackIds: items already returned before this visit (for S10).
   const [chosen, setChosen] = useState(null);
   // True after "Finish return": S10 Return done.
   const [finished, setFinished] = useState(false);
@@ -71,14 +76,21 @@ export default function ReturnPage() {
   const { loan } = result;
 
   if (loan && chosen && finished) {
-    return <ReturnDoneStep loan={loan} room={chosen.room} onBack={backToLoans} />;
+    return (
+      <ReturnDoneStep
+        loan={loan}
+        room={chosen.room}
+        alreadyBackIds={chosen.alreadyBackIds}
+        onBack={backToLoans}
+      />
+    );
   }
 
   // Finish with nothing scanned back: there is no "Return done", so go back to My loans
-  // (not in the design; needs team agreement).
+  // (agreed with the team, 26 Nov 2026).
   function handleFinish() {
-    const listItems = returnListItems(loan.items);
-    if (notReturnedItems(listItems).length === listItems.length) backToLoans();
+    const backNow = returnedThisVisit(returnListItems(loan.items), chosen.alreadyBackIds);
+    if (backNow.length === 0) backToLoans();
     else setFinished(true);
   }
 
@@ -110,7 +122,9 @@ export default function ReturnPage() {
   return (
     <ReturnRoomStep
       loan={loan}
-      onRoom={(room, roomRef) => setChosen({ room, roomRef })}
+      onRoom={(room, roomRef) =>
+        setChosen({ room, roomRef, alreadyBackIds: returnedIds(loan.items) })
+      }
       onBack={backToLoans}
     />
   );

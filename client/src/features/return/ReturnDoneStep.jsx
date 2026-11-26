@@ -1,14 +1,22 @@
 import Button from '../../components/ui/Button.jsx';
 import ItemNames from './ItemNames.jsx';
-import { doneText, notReturnedItems, notYetReturnedText, returnListItems } from './returnFormat.js';
+import {
+  doneText,
+  notReturnedItems,
+  notYetReturnedText,
+  returnedThisVisit,
+  returnListItems,
+} from './returnFormat.js';
 import ReturnStep from './ReturnStep.jsx';
 
 // S10 · Return done: "Loan closed" when every item is back, otherwise "Partly returned" with
 // the items the student still has. Everything comes from the loan of the last return call.
-export default function ReturnDoneStep({ loan, room, onBack }) {
+// The count is only the items returned in this visit (to this room): alreadyBackIds are the
+// items that were back before step 2 started (an earlier visit, or another home room).
+export default function ReturnDoneStep({ loan, room, alreadyBackIds, onBack }) {
   const listItems = returnListItems(loan.items);
   const left = notReturnedItems(listItems);
-  const backCount = listItems.length - left.length;
+  const backCount = returnedThisVisit(listItems, alreadyBackIds).length;
   const warn = notYetReturnedText(left.length, loan.dueAt);
 
   return (

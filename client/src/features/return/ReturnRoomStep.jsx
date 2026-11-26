@@ -17,7 +17,7 @@ function homeRoomsOf(loan) {
 }
 
 // "Go to the home room D569" or, when the items belong in different rooms,
-// "Go to one of the home rooms D569, D501" (the server accepts any of them; needs team agreement).
+// "Go to one of the home rooms D569, D501" (the server accepts any of them; agreed 26 Nov 2026).
 function goToText(names) {
   const where =
     names.length === 1 ? `the home room ${names[0]}` : `one of the home rooms ${names.join(', ')}`;

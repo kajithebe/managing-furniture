@@ -11,6 +11,7 @@ import ItemsPage from './pages/ItemsPage.jsx';
 import LabelsPage from './pages/LabelsPage.jsx';
 import LoginCodePage from './pages/LoginCodePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import ModItemPage from './pages/ModItemPage.jsx';
 import MyLoansPage from './pages/MyLoansPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import OverduePage from './pages/OverduePage.jsx';
@@ -69,7 +70,7 @@ export const router = createBrowserRouter([
           { path: '/mod/overdue', element: <OverduePage /> },
           { path: '/mod/items', element: <ItemsPage /> },
           { path: '/mod/items/new', element: <ItemFormPage /> },
-          { path: '/mod/items/:code', element: placeholder('Item') },
+          { path: '/mod/items/:code', element: <ModItemPage /> },
           { path: '/mod/items/:code/edit', element: <ItemFormPage /> },
           { path: '/mod/labels', element: <LabelsPage /> },
           { path: '/mod/reports/:report', element: <ReportsPage /> },

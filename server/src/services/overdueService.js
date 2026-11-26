@@ -2,7 +2,10 @@
 // LoanItem OVERDUE, set by the MF-20 reminders job. There is no "missing" status (01 › Rules).
 import { env } from '../config/env.js';
 import { prisma } from '../db.js';
+import { notYetReturnedMail } from '../mail/notYetReturned.js';
+import { AppError } from '../middleware/error.js';
 import { toCsv } from '../utils/csv.js';
+import { sendMail } from './mailService.js';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -158,4 +161,81 @@ const overdueColumns = [
 export async function overdueCsv(filters, now = new Date()) {
   const { data } = await listOverdue({ ...filters, page: 1, pageSize: OVERDUE_CSV_MAX_ROWS }, now);
   return toCsv(overdueColumns, data);
+}
+
+// What "Email borrower" needs about one loan item.
+const contactFields = {
+  id: true,
+  status: true,
+  item: {
+    select: {
+      code: true,
+      category: { select: { name: true } },
+      homeRoom: { select: { name: true } },
+    },
+  },
+  loan: { select: { dueAt: true, user: { select: { email: true } } } },
+};
+
+// Only a not yet returned item can be emailed about. M4 lists only those, so the other
+// cases happen only when the item changed meanwhile (e.g. it was scanned back).
+async function findLateItem(loanItemId) {
+  const loanItem = await prisma.loanItem.findUnique({
+    where: { id: loanItemId },
+    select: contactFields,
+  });
+  if (!loanItem) {
+    throw new AppError(404, 'NOT_FOUND', 'Not found.');
+  }
+  const { code } = loanItem.item;
+  if (loanItem.status === 'RETURNED') {
+    throw new AppError(409, 'ALREADY_RETURNED', 'This item is already returned', {
+      itemCode: code,
+    });
+  }
+  if (loanItem.status !== 'OVERDUE') {
+    throw new AppError(409, 'ITEM_NOT_LATE', `${code} isn't late, so there is nothing to send`, {
+      itemCode: code,
+    });
+  }
+  return loanItem;
+}
+
+// P11 shows the same email the reminders job sends at the due time ("1 item is not yet
+// returned … If you already did, reply to this email and a moderator will check."), so the
+// borrower gets the same words from the moderator and from the job.
+function contactMail(loanItem) {
+  return notYetReturnedMail({
+    homeRoom: loanItem.item.homeRoom.name,
+    dueAt: loanItem.loan.dueAt,
+    items: [{ code: loanItem.item.code, categoryName: loanItem.item.category.name }],
+  });
+}
+
+// GET /api/moderator/loan-items/:id/contact – the P11 read-only preview → { to, subject, text }.
+export async function contactPreview(loanItemId) {
+  const loanItem = await findLateItem(loanItemId);
+  const { subject, text } = contactMail(loanItem);
+  return { to: loanItem.loan.user.email, subject, text };
+}
+
+// POST /api/moderator/loan-items/:id/contact – P11 "Send email": emails the borrower about one
+// item and saves the time as "Last contacted" (lastContactedAt) → { id, lastContactedAt }.
+// The time is saved only when the email was sent.
+export async function contactBorrower(loanItemId, now = new Date()) {
+  const loanItem = await findLateItem(loanItemId);
+
+  try {
+    await sendMail({ to: loanItem.loan.user.email, ...contactMail(loanItem) });
+  } catch (err) {
+    // The loan item id only: never the address or the email text in the log.
+    console.error(`Email borrower for loan item ${loanItem.id} could not be sent: ${err.message}`);
+    throw new AppError(503, 'MAIL_FAILED', 'The email could not be sent. Please try again.');
+  }
+
+  await prisma.loanItem.update({
+    where: { id: loanItem.id },
+    data: { lastContactedAt: now },
+  });
+  return { id: loanItem.id, lastContactedAt: now };
 }

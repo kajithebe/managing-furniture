@@ -10,7 +10,12 @@ import {
   listWaitingRequests,
 } from '../services/approvalService.js';
 import { getDashboard } from '../services/dashboardService.js';
-import { OVERDUE_SORT_COLUMNS, listOverdue } from '../services/overdueService.js';
+import {
+  OVERDUE_SORT_COLUMNS,
+  contactBorrower,
+  contactPreview,
+  listOverdue,
+} from '../services/overdueService.js';
 import { markReturned } from '../services/returnService.js';
 
 export const moderatorRouter = Router();
@@ -89,4 +94,16 @@ const overdueQuery = z.object({
 // GET /api/moderator/overdue – M4 Not yet returned → { data, total, notYetReturned }.
 moderatorRouter.get('/overdue', async (req, res) => {
   res.json(await listOverdue(overdueQuery.parse(req.query)));
+});
+
+// GET /api/moderator/loan-items/:id/contact – P11 preview of the email: { to, subject, text }.
+moderatorRouter.get('/loan-items/:id/contact', async (req, res) => {
+  const { id } = idParams.parse(req.params);
+  res.json(await contactPreview(id));
+});
+
+// POST /api/moderator/loan-items/:id/contact – P11 "Send email" → { id, lastContactedAt }.
+moderatorRouter.post('/loan-items/:id/contact', async (req, res) => {
+  const { id } = idParams.parse(req.params);
+  res.json(await contactBorrower(id));
 });

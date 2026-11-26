@@ -4,7 +4,9 @@
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
 // PATCH /api/items/:code      moderator  edit details and rooms (code read-only); returns the item
-// PATCH /api/items/:code/status  moderator  change condition with a reason (MF-29); returns the item
+// PATCH /api/items/:code/status    moderator  change condition with a reason (MF-29); returns the item
+// PATCH /api/items/:code/location  moderator  correct the current room with a reason (MF-29)
+// PATCH /api/items/:code/home      moderator  change the home room with a reason (MF-29)
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -109,6 +111,10 @@ const updateItemSchema = z
 // M7 "Change status" (MF-29). onLoan is never set here.
 const statusChangeSchema = z.object({ condition: z.enum(CONDITIONS), reason });
 
+// M7 "Correct location" and "Change home room" (MF-29): one room and the reason.
+const locationSchema = z.object({ currentRoomId: id, reason });
+const homeSchema = z.object({ homeRoomId: id, reason });
+
 // ---------- Routes ----------
 
 export const itemsRouter = Router();
@@ -140,11 +146,23 @@ itemsRouter.post('/', moderator, async (req, res) => {
 itemsRouter.patch('/:code', moderator, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
   const changes = updateItemSchema.parse(req.body);
-  res.json(await updateItem(code, changes, req.user.id));
+  res.json(await updateItem(code, changes, req.user));
 });
 
 itemsRouter.patch('/:code/status', moderator, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
   const change = statusChangeSchema.parse(req.body);
   res.json(await changeCondition(code, change, req.user));
+});
+
+// The room actions use the Edit form's rules (updateItem): LOCATION_CORRECTED / HOME_CHANGED
+// event with the reason as note; the current room cannot change while on loan (ITEM_ON_LOAN).
+itemsRouter.patch('/:code/location', moderator, async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  res.json(await updateItem(code, locationSchema.parse(req.body), req.user));
+});
+
+itemsRouter.patch('/:code/home', moderator, async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  res.json(await updateItem(code, homeSchema.parse(req.body), req.user));
 });

@@ -284,7 +284,10 @@ async function checkRoom(roomId) {
 //   An unchanged room writes nothing, needs no reason and is not checked again.
 // - the current room cannot change while the item is on loan → 409 ITEM_ON_LOAN.
 // - the other details → one EDITED event with the names of the changed fields.
-export async function updateItem(code, changes, userId) {
+// `viewer` is the logged-in moderator: the events get their id, and the returned item shows the
+// borrower of an item on loan, like GET does.
+// Also used by PATCH /items/:code/location and /home (MF-29), so the room rules live in one place.
+export async function updateItem(code, changes, viewer) {
   const item = await prisma.item.findUnique({
     where: { code },
     select: {
@@ -351,7 +354,7 @@ export async function updateItem(code, changes, userId) {
 
   const changed = EDITABLE_FIELDS.filter((field) => next[field] !== item[field]);
   if (changed.length === 0 && !homeChanged && !currentChanged) {
-    return getItem(code);
+    return getItem(code, viewer);
   }
 
   const data = Object.fromEntries(changed.map((field) => [field, next[field]]));
@@ -395,11 +398,11 @@ export async function updateItem(code, changes, userId) {
       throw itemOnLoan(code);
     }
     await tx.itemEvent.createMany({
-      data: events.map((event) => ({ itemId: item.id, userId, ...event })),
+      data: events.map((event) => ({ itemId: item.id, userId: viewer.id, ...event })),
     });
   });
 
-  return getItem(code);
+  return getItem(code, viewer);
 }
 
 // PATCH /api/items/:code/status (M7 "Change status", MF-29): a new condition with a reason.

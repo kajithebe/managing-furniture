@@ -20,7 +20,6 @@
     "format": "prettier --write . --ignore-path ../.gitignore --ignore-path ../.prettierignore",
     "db:seed": "node --env-file-if-exists=../.env prisma/seed.js",
     "db:seed:demo": "node --env-file-if-exists=../.env prisma/seed.js --demo",
-    "dev:overdue": "node --env-file-if-exists=../.env scripts/devOverdueLoans.js",
     "test": "vitest run"
   },
   "dependencies": {

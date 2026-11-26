@@ -45,3 +45,13 @@ export function markLoanItemReturned(loanItemId, note) {
     note ? { note } : {},
   );
 }
+
+// P11 Email borrower (MF-23): the read-only preview → { to, subject, message }.
+export function getContactPreview(loanItemId, options) {
+  return api.get(`/moderator/loan-items/${encodeURIComponent(loanItemId)}/contact`, options);
+}
+
+// P11 "Send email": emails the borrower and saves Last contacted → { id, lastContactedAt }.
+export function contactBorrower(loanItemId) {
+  return api.post(`/moderator/loan-items/${encodeURIComponent(loanItemId)}/contact`, {});
+}

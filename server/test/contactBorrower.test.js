@@ -78,13 +78,13 @@ describe('GET /api/moderator/loan-items/:id/contact (P11 preview)', () => {
     expect(student.status).toBe(403);
   });
 
-  it('shows the P11 email: To, subject and text', async () => {
+  it('shows the P11 email: To, subject and message', async () => {
     const res = await preview(31);
 
     expect(res.status).toBe(200);
     expect(res.body.to).toBe('aino.virtanen@metropolia.fi');
     expect(res.body.subject).toBe('1 item is not yet returned');
-    expect(res.body.text).toContain(
+    expect(res.body.message).toBe(
       "Chair MP-00126 was due back in D569 at 14:00 and hasn't been scanned in yet. Please return it as soon as you can. If you already did, reply to this email and a moderator will check.",
     );
     expect(sendMail).not.toHaveBeenCalled();

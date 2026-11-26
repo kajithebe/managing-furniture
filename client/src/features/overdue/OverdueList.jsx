@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getLookups } from '../../api/lookups.js';
 import { getOverdue } from '../../api/moderator.js';
 import Button from '../../components/ui/Button.jsx';
@@ -11,6 +11,7 @@ import { ItemName } from '../dashboard/DashboardPanel.jsx';
 import { formatDayClock } from '../dashboard/format.js';
 import Pagination from '../reports/Pagination.jsx';
 import { notifyRequestsChanged } from '../requests/useWaitingCount.js';
+import EmailBorrowerDialog from './EmailBorrowerDialog.jsx';
 import MarkReturnedDialog from './MarkReturnedDialog.jsx';
 import { formatContacted, formatLateBy, overdueMessage } from './overdueText.js';
 
@@ -82,6 +83,8 @@ export default function OverdueList() {
   const [changes, setChanges] = useState(0);
   // The row whose P12 pop-up is open.
   const [returning, setReturning] = useState(null);
+  // The row whose P11 pop-up is open.
+  const [emailing, setEmailing] = useState(null);
   const [toast, setToast] = useState('');
   // Shown when the item was returned meanwhile (e.g. scanned back by the borrower).
   const [notice, setNotice] = useState('');
@@ -174,10 +177,21 @@ export default function OverdueList() {
     reload();
   }
 
-  function handleConflict(message) {
+  // Kept stable, because the P11 pop-up uses it in an effect.
+  const handleConflict = useCallback((message) => {
     setReturning(null);
+    setEmailing(null);
     setNotice(message);
-    reload();
+    setChanges((current) => current + 1);
+    notifyRequestsChanged();
+  }, []);
+
+  // P11 sent: "Last contacted" shows the new time after the list reloads.
+  function handleSent(row) {
+    setEmailing(null);
+    setNotice('');
+    setToast(`Email sent to ${row.borrower.name}`);
+    setChanges((current) => current + 1);
   }
 
   function changeFilter(name, value) {
@@ -212,10 +226,16 @@ export default function OverdueList() {
     {
       key: 'actions',
       header: 'Actions',
-      // TODO: Email borrower opens P11 when MF-20 is merged.
       render: (row) => (
         <span>
-          <ActionLink disabled>Email borrower</ActionLink>
+          <ActionLink
+            onClick={() => {
+              setToast('');
+              setEmailing(row);
+            }}
+          >
+            Email borrower
+          </ActionLink>
           <span className="text-muted"> / </span>
           <ActionLink
             onClick={() => {
@@ -313,6 +333,15 @@ export default function OverdueList() {
 
       {/* 03: the toast appears under the list. */}
       <Toast className="mt-4" message={toast} onDismiss={() => setToast('')} />
+
+      {emailing && (
+        <EmailBorrowerDialog
+          row={emailing}
+          onClose={() => setEmailing(null)}
+          onSent={handleSent}
+          onConflict={handleConflict}
+        />
+      )}
 
       {returning && (
         <MarkReturnedDialog

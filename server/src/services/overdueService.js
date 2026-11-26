@@ -212,11 +212,15 @@ function contactMail(loanItem) {
   });
 }
 
-// GET /api/moderator/loan-items/:id/contact – the P11 read-only preview → { to, subject, text }.
+// GET /api/moderator/loan-items/:id/contact – the P11 read-only preview
+// → { to, subject, message }. P11 shows only the message under the subject, so the title
+// line, the "Open my loans" link and the footer of the plain-text email are left out.
+// The plain text is built as: title, message, link, footer, with a blank line between them.
 export async function contactPreview(loanItemId) {
   const loanItem = await findLateItem(loanItemId);
   const { subject, text } = contactMail(loanItem);
-  return { to: loanItem.loan.user.email, subject, text };
+  const message = text.split('\n\n').slice(1, -2).join('\n\n');
+  return { to: loanItem.loan.user.email, subject, message };
 }
 
 // POST /api/moderator/loan-items/:id/contact – P11 "Send email": emails the borrower about one

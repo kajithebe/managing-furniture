@@ -9,6 +9,7 @@ import { logChange } from './auditService.js';
 import {
   buildCode,
   CODE_MAX_LENGTH,
+  codeTooLong,
   DEFAULT_CODE_SCHEME,
   longestCodeLength,
   yearPart,
@@ -159,11 +160,7 @@ export async function getCodeScheme() {
 // so codes stay unique.
 export async function saveCodeScheme(actorId, scheme) {
   if (await isOverLimit(scheme)) {
-    throw new AppError(
-      400,
-      'CODE_TOO_LONG',
-      `Codes can be at most ${CODE_MAX_LENGTH} characters. Remove a segment or shorten the fixed text.`,
-    );
+    throw codeTooLong();
   }
 
   await prisma.$transaction(async (tx) => {

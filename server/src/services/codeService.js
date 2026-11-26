@@ -25,6 +25,15 @@ const ITEM_SEGMENTS = ['campus', 'category', 'brand', 'colour', 'year'];
 // routes accept codes of at most 30 characters, so a code format may never make a longer code.
 export const CODE_MAX_LENGTH = 30;
 
+// 400 CODE_TOO_LONG (02 › Asset codes): A1 refuses such a format; Add item refuses such an item.
+export function codeTooLong() {
+  return new AppError(
+    400,
+    'CODE_TOO_LONG',
+    `Codes can be at most ${CODE_MAX_LENGTH} characters. Remove a segment or shorten the fixed text.`,
+  );
+}
+
 // Fixed text: the characters the scanner accepts in a typed code (A–Z, 0–9, / . _ -),
 // starting with a letter or digit, 1–10 characters. "mp/26" is saved as "MP/26".
 const textSegment = z.object({
@@ -180,6 +189,12 @@ export async function reserveCodes(tx, count, parts = {}) {
   const codes = Array.from({ length: count }, (_, i) =>
     buildCode(setting.codeScheme, firstNumber + i, parts),
   );
+
+  // Safety net: a short code added after the format was saved can make a code too long for
+  // the scanner and the item page. Throwing here rolls back the transaction, numbers included.
+  if (codes.some((code) => code.length > CODE_MAX_LENGTH)) {
+    throw codeTooLong();
+  }
 
   // Safety net: a code must never be given twice (for example after a scheme change).
   const taken = await tx.item.findFirst({

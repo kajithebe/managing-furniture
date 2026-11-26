@@ -178,4 +178,30 @@ describe('POST /api/items', () => {
     expect(res.status).toBe(201);
     expect(res.body.map((item) => item.code)).toEqual(['KAR-CHR-00012', 'KAR-CHR-00013']);
   });
+
+  it('refuses an item whose code would be over 30 characters, and saves nothing', async () => {
+    // Saved while the longest short codes were short; a 5-character campus code came later.
+    const long = scheme(['text', 'campus', 'category', 'brand', 'colour', 'number']);
+    long.segments[0].value = 'METROPOLIA';
+    prisma.setting.update.mockResolvedValue({ codeScheme: long, nextNumber: 13 });
+    prisma.room.findUnique.mockResolvedValue({
+      archived: false,
+      building: { campus: { code: 'MYLLY' } },
+    });
+
+    const res = await postItems({
+      categoryId: CHAIR,
+      homeRoomId: D569,
+      brandId: ISKU,
+      colourId: GREY,
+    });
+
+    // METROPOLIA-MYLLY-CHR-ISK-GRY-00012 = 34 characters
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('CODE_TOO_LONG');
+    expect(res.body.error.message).toBe(
+      'Codes can be at most 30 characters. Remove a segment or shorten the fixed text.',
+    );
+    expect(prisma.item.createManyAndReturn).not.toHaveBeenCalled();
+  });
 });

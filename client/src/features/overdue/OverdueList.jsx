@@ -230,19 +230,18 @@ export default function OverdueList() {
     },
   ];
 
-  const filtersChosen = Boolean(filters.category || filters.room);
+  // Shared · Empty Not yet returned: nothing is late at all, so there is no table, only the
+  // filters and the big ✓ (like the empty Requests page).
+  const everythingBack = !loading && !loadFailed && result.notYetReturned === 0;
 
-  // Shared · Empty table: "No items match these filters." with Clear filters. Without filters
-  // the list is empty because everything is back (same words as the M1 panel).
-  const emptyState = filtersChosen ? (
+  // Shared · Empty table: late items exist, but none match the filters.
+  const emptyState = (
     <div className="py-6">
       <p className="text-base font-semibold text-ink">No items match these filters.</p>
       <Button variant="secondary" className="mt-4" onClick={clearFilters}>
         Clear filters
       </Button>
     </div>
-  ) : (
-    'Everything is back where it belongs.'
   );
 
   return (
@@ -278,9 +277,22 @@ export default function OverdueList() {
         />
       </div>
 
-      {loadFailed ? (
+      {loadFailed && (
         <LoadError className="mt-4" onRetry={() => setAttempt((current) => current + 1)} />
-      ) : (
+      )}
+
+      {everythingBack && (
+        <div className="py-12 text-center">
+          <p aria-hidden="true" className="text-3xl text-brand">
+            ✓
+          </p>
+          <p className="mt-2 text-lg font-semibold text-ink">
+            Everything is back where it belongs.
+          </p>
+        </div>
+      )}
+
+      {!loadFailed && !everythingBack && (
         <div aria-busy={loading} className={`mt-4 ${loading ? 'opacity-60' : ''}`}>
           <Table
             caption="Not yet returned"

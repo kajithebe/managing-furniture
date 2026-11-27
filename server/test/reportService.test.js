@@ -2,6 +2,9 @@
 // what the report adds: the filter rules and the CSV columns.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The loans report (MF-32) uses Prisma directly. CI has no generated Prisma Client, so the
+// database is mocked too; the inventory tests never reach it.
+vi.mock('../src/db.js', () => ({ prisma: {} }));
 vi.mock('../src/services/itemService.js', () => ({ listItems: vi.fn() }));
 
 const { listItems } = await import('../src/services/itemService.js');

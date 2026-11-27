@@ -101,7 +101,8 @@ export const STATUS_LABELS = {
 };
 
 // A room from GET /api/items/:code → { campus, building, room } for RoomFields.
-function roomValue(room) {
+// Also used by the M7 room pop-ups (MF-29).
+export function roomValue(room) {
   return {
     campus: String(room.building.campus.id),
     building: String(room.building.id),

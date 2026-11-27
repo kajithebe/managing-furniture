@@ -284,7 +284,10 @@ async function checkRoom(roomId) {
 //   An unchanged room writes nothing, needs no reason and is not checked again.
 // - the current room cannot change while the item is on loan → 409 ITEM_ON_LOAN.
 // - the other details → one EDITED event with the names of the changed fields.
-export async function updateItem(code, changes, userId) {
+// `viewer` is the logged-in moderator: the events get their id, and the returned item shows the
+// borrower of an item on loan, like GET does.
+// Also used by PATCH /items/:code/location and /home (MF-29), so the room rules live in one place.
+export async function updateItem(code, changes, viewer) {
   const item = await prisma.item.findUnique({
     where: { code },
     select: {
@@ -351,7 +354,7 @@ export async function updateItem(code, changes, userId) {
 
   const changed = EDITABLE_FIELDS.filter((field) => next[field] !== item[field]);
   if (changed.length === 0 && !homeChanged && !currentChanged) {
-    return getItem(code);
+    return getItem(code, viewer);
   }
 
   const data = Object.fromEntries(changed.map((field) => [field, next[field]]));
@@ -395,9 +398,53 @@ export async function updateItem(code, changes, userId) {
       throw itemOnLoan(code);
     }
     await tx.itemEvent.createMany({
-      data: events.map((event) => ({ itemId: item.id, userId, ...event })),
+      data: events.map((event) => ({ itemId: item.id, userId: viewer.id, ...event })),
     });
   });
 
-  return getItem(code);
+  return getItem(code, viewer);
+}
+
+// PATCH /api/items/:code/status (M7 "Change status", MF-29): a new condition with a reason.
+// - blocked while the item is on loan (02 › Loan item rules) → 409 ITEM_ON_LOAN
+// - the STATUS_CHANGED note is the new condition, a colon and the reason, e.g.
+//   "NEEDS_REPAIR: Wobbly leg" (agreed 23 Nov 2026; the dashboard splits it)
+// - the same condition again changes nothing and writes no event
+// `viewer` is the logged-in moderator, so the returned item shows the borrower like GET does.
+export async function changeCondition(code, { condition, reason }, viewer) {
+  const item = await prisma.item.findUnique({
+    where: { code },
+    select: { id: true, onLoan: true, condition: true },
+  });
+  if (!item) {
+    throw itemNotFound(code);
+  }
+  if (item.onLoan) {
+    throw itemOnLoan(code);
+  }
+  if (item.condition === condition) {
+    return getItem(code, viewer);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Only matches while the item is still not on loan, so a loan approved since the check
+    // above cannot get a new condition.
+    const { count } = await tx.item.updateMany({
+      where: { id: item.id, onLoan: false },
+      data: { condition },
+    });
+    if (count === 0) {
+      throw itemOnLoan(code);
+    }
+    await tx.itemEvent.create({
+      data: {
+        itemId: item.id,
+        type: 'STATUS_CHANGED',
+        userId: viewer.id,
+        note: `${condition}: ${reason}`,
+      },
+    });
+  });
+
+  return getItem(code, viewer);
 }

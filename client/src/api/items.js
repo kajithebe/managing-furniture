@@ -37,7 +37,24 @@ export function getNextCodes(params, options) {
 }
 
 // M6 Edit: PATCH /api/items/:code → the item. Only details: category, name, brand, colour,
-// wheels and notes. The code never changes; status and rooms have their own actions (MF-29).
+// wheels, notes and both rooms (a room change needs a reason). The code never changes;
+// status has its own action on the item page (MF-29).
 export function updateItem(code, body, options) {
   return api.patch(`/items/${encodeURIComponent(code)}`, body, options);
+}
+
+// M7 item actions (MF-29), each with a reason (1–500 characters) and returning the item.
+// Change status: PATCH /api/items/:code/status { condition, reason }. Blocked while on loan.
+export function changeItemStatus(code, body, options) {
+  return api.patch(`/items/${encodeURIComponent(code)}/status`, body, options);
+}
+
+// Correct location: PATCH /api/items/:code/location { currentRoomId, reason }. Blocked while on loan.
+export function correctItemLocation(code, body, options) {
+  return api.patch(`/items/${encodeURIComponent(code)}/location`, body, options);
+}
+
+// Change home room: PATCH /api/items/:code/home { homeRoomId, reason }.
+export function changeItemHome(code, body, options) {
+  return api.patch(`/items/${encodeURIComponent(code)}/home`, body, options);
 }

@@ -4,12 +4,16 @@
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
 // PATCH /api/items/:code      moderator  edit details and rooms (code read-only); returns the item
+// PATCH /api/items/:code/status    moderator  change condition with a reason (MF-29); returns the item
+// PATCH /api/items/:code/location  moderator  correct the current room with a reason (MF-29)
+// PATCH /api/items/:code/home      moderator  change the home room with a reason (MF-29)
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { previewCodes } from '../services/codeService.js';
 import {
+  changeCondition,
   createItems,
   getItem,
   listItems,
@@ -22,6 +26,11 @@ import {
 
 const id = z.number().int().positive();
 const optionalId = id.nullish();
+
+// The stored conditions (02 › Item status). "Available" in the app is GOOD.
+const CONDITIONS = ['GOOD', 'NEEDS_REPAIR', 'BROKEN', 'IN_REPAIR', 'DISPOSED'];
+// Why a moderator changed something: same limits as the Edit form's reason.
+const reason = z.string().trim().min(1).max(500);
 
 // Query string values are text, so they are converted to numbers.
 // Sprint 1 ignores them; the code scheme (MF-21) uses them for campus, category … segments.
@@ -64,7 +73,7 @@ const createItemSchema = z
     homeRoomId: id,
     currentRoomId: optionalId,
     // "On loan" is never set here: only the loan and return services change onLoan.
-    condition: z.enum(['GOOD', 'NEEDS_REPAIR', 'BROKEN', 'IN_REPAIR', 'DISPOSED']).default('GOOD'),
+    condition: z.enum(CONDITIONS).default('GOOD'),
     quantity: z.number().int().min(1).max(200).default(1),
     notes: z.string().trim().max(1000).optional(),
   })
@@ -95,9 +104,16 @@ const updateItemSchema = z
     currentRoomId: id.optional(),
     // Why a room changed (02 › Edit item, decided 25 Nov 2026). Required by the service when
     // homeRoomId or currentRoomId really changes, because only then is it known.
-    reason: z.string().trim().min(1).max(500).optional(),
+    reason: reason.optional(),
   })
   .refine((changes) => Object.keys(changes).length > 0, 'Nothing to change.');
+
+// M7 "Change status" (MF-29). onLoan is never set here.
+const statusChangeSchema = z.object({ condition: z.enum(CONDITIONS), reason });
+
+// M7 "Correct location" and "Change home room" (MF-29): one room and the reason.
+const locationSchema = z.object({ currentRoomId: id, reason });
+const homeSchema = z.object({ homeRoomId: id, reason });
 
 // ---------- Routes ----------
 
@@ -130,5 +146,23 @@ itemsRouter.post('/', moderator, async (req, res) => {
 itemsRouter.patch('/:code', moderator, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
   const changes = updateItemSchema.parse(req.body);
-  res.json(await updateItem(code, changes, req.user.id));
+  res.json(await updateItem(code, changes, req.user));
+});
+
+itemsRouter.patch('/:code/status', moderator, async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  const change = statusChangeSchema.parse(req.body);
+  res.json(await changeCondition(code, change, req.user));
+});
+
+// The room actions use the Edit form's rules (updateItem): LOCATION_CORRECTED / HOME_CHANGED
+// event with the reason as note; the current room cannot change while on loan (ITEM_ON_LOAN).
+itemsRouter.patch('/:code/location', moderator, async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  res.json(await updateItem(code, locationSchema.parse(req.body), req.user));
+});
+
+itemsRouter.patch('/:code/home', moderator, async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  res.json(await updateItem(code, homeSchema.parse(req.body), req.user));
 });

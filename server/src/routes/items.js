@@ -2,6 +2,7 @@
 // GET  /api/items/next-code   moderator  first and last code of the next `quantity` items
 // GET  /api/items             moderator  M5 list: filters, search, sorting, paging → { data, total }
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
+// GET  /api/items/:code/history  moderator  one item's history events, newest first → { data, total }
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
 // PATCH /api/items/:code      moderator  edit details and rooms (code read-only); returns the item
 import { Router } from 'express';
@@ -17,6 +18,7 @@ import {
   SORT_COLUMNS,
   updateItem,
 } from '../services/itemService.js';
+import { itemHistoryOf } from '../services/reportService.js';
 
 // ---------- Validation ----------
 
@@ -120,6 +122,17 @@ itemsRouter.get('/next-code', moderator, async (req, res) => {
 itemsRouter.get('/:code', requireAuth, async (req, res) => {
   const { code } = codeParamSchema.parse(req.params);
   res.json(await getItem(code, req.user));
+});
+
+// M7 History card (MF-32). Paging: 25 events per page by default, at most 100.
+const historyQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+itemsRouter.get('/:code/history', moderator, async (req, res) => {
+  const { code } = codeParamSchema.parse(req.params);
+  res.json(await itemHistoryOf(code, historyQuerySchema.parse(req.query)));
 });
 
 itemsRouter.post('/', moderator, async (req, res) => {

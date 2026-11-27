@@ -2,6 +2,7 @@
 // Download CSV button. Sprint 1 has the Inventory report; Sprint 2 adds Loans and Item history.
 import { env } from '../config/env.js';
 import { prisma } from '../db.js';
+import { AppError } from '../middleware/error.js';
 import { toCsv } from '../utils/csv.js';
 import { startOfToday, usersById } from './approvalService.js';
 import { splitNote } from './dashboardService.js';
@@ -376,6 +377,22 @@ export async function itemEvents(where, { skip, take }) {
 // filters: { code, from, to, page, pageSize }, already validated by the route.
 export async function itemHistoryReport({ page, pageSize, ...filters }) {
   const where = itemHistoryWhere(filters);
+  const [total, data] = await Promise.all([
+    prisma.itemEvent.count({ where }),
+    itemEvents(where, { skip: (page - 1) * pageSize, take: pageSize }),
+  ]);
+  return { data, total };
+}
+
+// GET /api/items/:code/history → { data, total } for one page of one item's events, newest
+// first (M7 History card). An unknown code gives 404 ITEM_NOT_FOUND with the M8 wording, which
+// is the wording of the staff screens.
+export async function itemHistoryOf(code, { page, pageSize }) {
+  const item = await prisma.item.findUnique({ where: { code }, select: { id: true } });
+  if (!item) {
+    throw new AppError(404, 'ITEM_NOT_FOUND', `No item with code ${code}`, { itemCode: code });
+  }
+  const where = { itemId: item.id };
   const [total, data] = await Promise.all([
     prisma.itemEvent.count({ where }),
     itemEvents(where, { skip: (page - 1) * pageSize, take: pageSize }),

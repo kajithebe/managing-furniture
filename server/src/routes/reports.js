@@ -6,13 +6,22 @@
 // GET /api/reports/overdue?format=csv     the same filters → all matching rows as a CSV file
 // GET /api/reports/loans                  M9 Loans tab → { data, total, summary } for one page
 // GET /api/reports/loans?format=csv       the same filters → all matching loans as a CSV file
+// GET /api/reports/item-history           M9 Item history tab → { data, total } for one page
+// GET /api/reports/item-history?format=csv  the same filters → all matching events as a CSV file
 import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { SHOWN_STATUSES, SORT_COLUMNS } from '../services/itemService.js';
 import { OVERDUE_SORT_COLUMNS, listOverdue, overdueCsv } from '../services/overdueService.js';
-import { inventoryCsv, inventoryReport, loansCsv, loansReport } from '../services/reportService.js';
+import {
+  inventoryCsv,
+  inventoryReport,
+  itemHistoryCsv,
+  itemHistoryReport,
+  loansCsv,
+  loansReport,
+} from '../services/reportService.js';
 
 export const reportsRouter = Router();
 
@@ -55,6 +64,22 @@ const loansQuery = z
     category: queryId,
     room: queryId,
     status: z.enum(['OPEN', 'CLOSED']).optional(),
+    page,
+    pageSize,
+    format: z.enum(['csv']).optional(),
+  })
+  .refine((query) => !query.from || !query.to || query.from <= query.to, {
+    message: 'The start date must be on or before the end date',
+    path: ['from'],
+  });
+
+// The Item history filters (01 › Reports): one item (asset code) or a date range, or both.
+// Codes are upper-cased like everywhere else, and are at most 30 characters (02 › Asset codes).
+const itemHistoryQuery = z
+  .object({
+    code: z.string().trim().toUpperCase().min(1).max(30).optional(),
+    from: dateText,
+    to: dateText,
     page,
     pageSize,
     format: z.enum(['csv']).optional(),
@@ -121,4 +146,18 @@ reportsRouter.get('/loans', async (req, res) => {
   }
 
   res.json(await loansReport({ ...filters, page, pageSize }));
+});
+
+reportsRouter.get('/item-history', async (req, res) => {
+  const { format, page, pageSize, ...filters } = itemHistoryQuery.parse(req.query);
+
+  if (format === 'csv') {
+    const csv = await itemHistoryCsv(filters);
+    res.attachment(`item-history-${today()}.csv`);
+    res.type('text/csv; charset=utf-8');
+    res.send(csv);
+    return;
+  }
+
+  res.json(await itemHistoryReport({ ...filters, page, pageSize }));
 });

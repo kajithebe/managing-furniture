@@ -155,7 +155,7 @@ async function countItemsByStatus() {
 // A note in another format is kept whole, with no condition.
 const STATUS_NOTE = /^(GOOD|NEEDS_REPAIR|BROKEN|IN_REPAIR|DISPOSED):\s*([\s\S]*)$/;
 
-function splitNote(event) {
+export function splitNote(event) {
   if (event.type === 'STATUS_CHANGED') {
     const match = STATUS_NOTE.exec(event.note ?? '');
     if (match) {

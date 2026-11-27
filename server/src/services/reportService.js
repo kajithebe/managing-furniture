@@ -3,8 +3,10 @@
 import { env } from '../config/env.js';
 import { prisma } from '../db.js';
 import { toCsv } from '../utils/csv.js';
-import { startOfToday } from './approvalService.js';
+import { startOfToday, usersById } from './approvalService.js';
+import { splitNote } from './dashboardService.js';
 import { listItems } from './itemService.js';
+import { roomsById } from './loanService.js';
 
 // The CSV holds every matching item, not only one page. 01 expects about 10,000 items at
 // Karaportti, so this limit leaves room to grow while keeping one download reasonable.
@@ -114,15 +116,6 @@ const LOAN_SELECT = {
   },
 };
 
-// Room id → { id, name } for the given room ids, in one query.
-async function roomsByIds(ids) {
-  const rooms = await prisma.room.findMany({
-    where: { id: { in: [...ids] } },
-    select: { id: true, name: true },
-  });
-  return new Map(rooms.map((room) => [room.id, room]));
-}
-
 // Room id → { id, name } for every room the given loans mention.
 function roomNames(loans) {
   const ids = new Set();
@@ -132,7 +125,7 @@ function roomNames(loans) {
       if (loanItem.fromRoomId) ids.add(loanItem.fromRoomId);
     }
   }
-  return roomsByIds(ids);
+  return roomsById([...ids]);
 }
 
 // A loan is late when one of its items came back after the due time, is "Not yet returned"
@@ -228,7 +221,7 @@ async function loansSummary(where) {
       moved.flatMap((loanItem) => [loanItem.fromRoomId, loanItem.loan.toRoomId]).filter(Boolean),
     ),
   );
-  const rooms = await roomsByIds(roomCounts.map(([id]) => id));
+  const rooms = await roomsById(roomCounts.map(([id]) => id));
 
   return {
     itemsMoved: moved.length,
@@ -323,4 +316,122 @@ const loansColumns = [
 export async function loansCsv(filters, now = new Date()) {
   const rows = await findLoanRows(loansWhere(filters), { take: LOANS_CSV_MAX_ROWS }, now);
   return toCsv(loansColumns, rows);
+}
+
+// ---------- Item history report (MF-32) ----------
+
+// Prisma filter for the Item history tab (01 › Reports: one item or a date range).
+// - code: one item's events (asset code, already upper-cased by the route)
+// - from / to: the day the event happened, both days included, in TZ
+function itemHistoryWhere({ code, from, to }) {
+  const and = [];
+  if (code) and.push({ item: { code } });
+  if (from) and.push({ createdAt: { gte: startOfDay(from) } });
+  if (to) and.push({ createdAt: { lt: startOfDay(nextDay(to)) } });
+  return { AND: and };
+}
+
+// Item events that match `where`, newest first, in the same shape as the dashboard's
+// Recent activity: { id, type, createdAt, user, item, loanId, fromRoom, toRoom, condition, note }.
+// ItemEvent has no relations for the user and the rooms, so their names come from two extra
+// queries. Also used by the item page timeline (M7 History).
+export async function itemEvents(where, { skip, take }) {
+  const events = await prisma.itemEvent.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip,
+    take,
+    select: {
+      id: true,
+      type: true,
+      createdAt: true,
+      userId: true,
+      loanId: true,
+      fromRoomId: true,
+      toRoomId: true,
+      note: true,
+      item: { select: { code: true, name: true } },
+    },
+  });
+
+  const [users, rooms] = await Promise.all([
+    usersById(events.map((event) => event.userId)),
+    roomsById(events.flatMap((event) => [event.fromRoomId, event.toRoomId])),
+  ]);
+
+  return events.map((event) => ({
+    id: event.id,
+    type: event.type,
+    createdAt: event.createdAt,
+    user: users.get(event.userId) ?? null,
+    item: event.item,
+    loanId: event.loanId,
+    fromRoom: rooms.get(event.fromRoomId) ?? null,
+    toRoom: rooms.get(event.toRoomId) ?? null,
+    ...splitNote(event),
+  }));
+}
+
+// GET /api/reports/item-history → { data, total } for one page, newest event first.
+// filters: { code, from, to, page, pageSize }, already validated by the route.
+export async function itemHistoryReport({ page, pageSize, ...filters }) {
+  const where = itemHistoryWhere(filters);
+  const [total, data] = await Promise.all([
+    prisma.itemEvent.count({ where }),
+    itemEvents(where, { skip: (page - 1) * pageSize, take: pageSize }),
+  ]);
+  return { data, total };
+}
+
+// The CSV holds every matching event, not only one page (same limit as the other reports).
+export const ITEM_HISTORY_CSV_MAX_ROWS = 20000;
+
+// Event names for the CSV, in the words of the M7 History card.
+const EVENT_LABELS = {
+  CREATED: 'Created',
+  EDITED: 'Edited',
+  BORROWED: 'Borrowed',
+  APPROVED: 'Approved',
+  DECLINED: 'Declined',
+  RETURNED: 'Returned (scanned)',
+  MARKED_RETURNED: 'Marked returned',
+  OVERDUE: 'Not yet returned',
+  STATUS_CHANGED: 'Status changed',
+  LOCATION_CORRECTED: 'Location corrected',
+  HOME_CHANGED: 'Home room changed',
+};
+
+// A condition as the item's status badge shows it (02 › Item status shown in the app).
+const CONDITION_LABELS = {
+  GOOD: 'Available',
+  NEEDS_REPAIR: 'Needs repair',
+  BROKEN: 'Broken',
+  IN_REPAIR: 'In repair',
+  DISPOSED: 'Disposed',
+};
+
+// "Status changed to Needs repair" when the new condition is known, else the event name.
+function eventLabel(row) {
+  const label = EVENT_LABELS[row.type] ?? row.type;
+  return row.condition ? `${label} to ${CONDITION_LABELS[row.condition]}` : label;
+}
+
+// The Item history columns (01 › Reports: date, event, user, from → to room, note), with the
+// item first, so a date-range file shows which item each event belongs to.
+const itemHistoryColumns = [
+  { header: 'Date', value: (row) => localDateTime(row.createdAt) },
+  { header: 'Item', value: (row) => row.item.name },
+  { header: 'Code', value: (row) => row.item.code },
+  { header: 'Event', value: eventLabel },
+  { header: 'User', value: (row) => row.user?.name },
+  { header: 'From', value: (row) => row.fromRoom?.name },
+  { header: 'To', value: (row) => row.toRoom?.name },
+  { header: 'Note', value: (row) => row.note },
+];
+
+// GET /api/reports/item-history?format=csv → the CSV file as text, all matching events,
+// newest first. filters: as for itemHistoryReport, without the page.
+export async function itemHistoryCsv(filters) {
+  const rows = await itemEvents(itemHistoryWhere(filters), { take: ITEM_HISTORY_CSV_MAX_ROWS });
+  return toCsv(itemHistoryColumns, rows);
 }

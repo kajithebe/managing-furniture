@@ -7,12 +7,13 @@ import Card from '../components/ui/Card.jsx';
 import LoadError from '../components/ui/LoadError.jsx';
 import ChangeStatusDialog from '../features/items/ChangeStatusDialog.jsx';
 import RoomActionDialog from '../features/items/RoomActionDialog.jsx';
+import MarkReturnedDialog from '../features/overdue/MarkReturnedDialog.jsx';
 import { roomPath, wheelsText } from '../features/items/itemText.js';
 import { formatClock } from '../features/requests/format.js';
 
 // M7 · Item details & actions (moderators and admins): /mod/items/:code.
-// The History panel comes with the item history timeline (MF-32); "Mark returned" and
-// "Open loan detail" come with the Not yet returned page (MF-23) and the loan detail page.
+// The History panel comes with the item history timeline (MF-32); "Open loan detail" comes
+// with the loan detail page (M3, MF-23).
 const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
@@ -77,7 +78,8 @@ function DetailsCard({ item }) {
 }
 
 // M7 · On loan: who has the item and until when. Status and location wait for the return.
-function CurrentLoanCard({ item }) {
+// "Mark returned" opens Miraj's P12 pop-up (MF-23) for the item's open loan item.
+function CurrentLoanCard({ item, onMarkReturned }) {
   const loan = item.currentLoan;
   const room = loan?.toRoom?.name ?? item.currentRoom?.name;
 
@@ -91,6 +93,11 @@ function CurrentLoanCard({ item }) {
         <p className="mt-2 text-[15px] text-ink">
           Until {formatDateTime(loan.dueAt)} · in {room}
         </p>
+      )}
+      {loan && (
+        <Button className="mt-4" onClick={onMarkReturned}>
+          Mark returned
+        </Button>
       )}
       <p className="mt-4 flex gap-3 rounded-card bg-brand-tint px-4 py-3 text-[15px] text-ink">
         <span aria-hidden="true" className="font-semibold">
@@ -130,16 +137,24 @@ function MoreActionsCard({ onAction }) {
   );
 }
 
-// onChange(item) puts the item from the server on the page after an action.
-function ItemView({ item, onChange }) {
+// onChange(item) puts the item from the server on the page after an action; onReload()
+// loads it again (after Mark returned, whose answer is not the item).
+function ItemView({ item, onChange, onReload }) {
   const navigate = useNavigate();
   const code = encodeURIComponent(item.code);
-  // The open pop-up: 'status', 'location', 'home' or null.
+  // The open pop-up: 'status', 'location', 'home', 'returned' or null.
   const [action, setAction] = useState(null);
 
   function saved(updated) {
     onChange(updated);
     setAction(null);
+  }
+
+  // Returned, or returned or changed by someone else meanwhile (404 / 409): show the item as
+  // it is now.
+  function returned() {
+    setAction(null);
+    onReload();
   }
 
   return (
@@ -163,7 +178,11 @@ function ItemView({ item, onChange }) {
       <div className="mt-6 grid grid-cols-2 items-start gap-6">
         <DetailsCard item={item} />
         <div className="flex flex-col gap-6">
-          {item.onLoan ? <CurrentLoanCard item={item} /> : <MoreActionsCard onAction={setAction} />}
+          {item.onLoan ? (
+            <CurrentLoanCard item={item} onMarkReturned={() => setAction('returned')} />
+          ) : (
+            <MoreActionsCard onAction={setAction} />
+          )}
         </div>
       </div>
 
@@ -175,6 +194,19 @@ function ItemView({ item, onChange }) {
           action={action}
           item={item}
           onSaved={saved}
+          onClose={() => setAction(null)}
+        />
+      )}
+      {action === 'returned' && (
+        <MarkReturnedDialog
+          row={{
+            id: item.currentLoan.loanItemId,
+            name: item.name,
+            code: item.code,
+            homeRoom: item.homeRoom,
+          }}
+          onReturned={returned}
+          onConflict={returned}
           onClose={() => setAction(null)}
         />
       )}
@@ -229,6 +261,7 @@ export default function ModItemPage() {
     <ItemView
       item={item}
       onChange={(updated) => setResult((current) => ({ ...current, item: updated }))}
+      onReload={() => setAttempt((value) => value + 1)}
     />
   );
 }

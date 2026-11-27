@@ -2,13 +2,20 @@ import { useState } from 'react';
 import { changeItemStatus } from '../../api/items.js';
 import Input from '../../components/ui/Input.jsx';
 import Modal from '../../components/ui/Modal.jsx';
-import Select from '../../components/ui/Select.jsx';
-import { CONDITIONS, MAX_REASON } from './itemForm.js';
+import { MAX_REASON, STATUS_LABELS } from './itemForm.js';
 
-// M7 "Change status" pop-up (MF-29). Not in the Figma pop-ups: built like P13 (item line,
-// one choice, required Reason, Cancel / Save). The reason is saved in the item history as
+// M7 "Change status" pop-up (P9, MF-29): the five conditions as radio options with a short
+// description, and a required Reason. The reason is saved in the item history as
 // "NEEDS_REPAIR: Wobbly leg". Opened only while the item is not on loan.
 // onSaved(item) gets the updated item from the server.
+const OPTIONS = [
+  { value: 'GOOD', label: 'Available', text: 'Ready to borrow' },
+  { value: 'NEEDS_REPAIR', label: 'Needs repair', text: 'Can still be borrowed' },
+  { value: 'BROKEN', label: 'Broken', text: 'Cannot be borrowed' },
+  { value: 'IN_REPAIR', label: 'In repair', text: 'Being repaired' },
+  { value: 'DISPOSED', label: 'Disposed', text: 'No longer in use' },
+];
+
 export default function ChangeStatusDialog({ item, onSaved, onClose }) {
   const [condition, setCondition] = useState(item.condition);
   const [reason, setReason] = useState('');
@@ -17,10 +24,10 @@ export default function ChangeStatusDialog({ item, onSaved, onClose }) {
   const [saveError, setSaveError] = useState('');
 
   const reasonError = reasonTouched && !reason.trim() ? 'Enter a reason' : undefined;
-  const unchanged = condition === item.condition;
+  const disabled = condition === item.condition || !reason.trim() || saving;
 
   async function save() {
-    if (unchanged || !reason.trim() || saving) {
+    if (disabled) {
       setReasonTouched(true);
       return;
     }
@@ -38,22 +45,35 @@ export default function ChangeStatusDialog({ item, onSaved, onClose }) {
     <Modal
       open
       title="Change status"
-      saveLabel="Save status"
-      saveDisabled={unchanged || !reason.trim() || saving}
+      saveLabel="Change status"
+      saveDisabled={disabled}
       onSave={save}
       onClose={onClose}
     >
       <p className="text-[15px] font-semibold text-ink">
-        {item.name} <span className="font-mono font-normal">{item.code}</span>
+        {item.name} <span className="font-mono font-normal">{item.code}</span> · now{' '}
+        {STATUS_LABELS[item.status]}
       </p>
-      <Select
-        id="change-status"
-        label="Status"
-        required
-        options={CONDITIONS}
-        value={condition}
-        onChange={(event) => setCondition(event.target.value)}
-      />
+      <fieldset>
+        {/* P9 shows no heading above the options; screen readers still hear "Status". */}
+        <legend className="sr-only">Status</legend>
+        {OPTIONS.map((option) => (
+          <label key={option.value} className="flex min-h-11 cursor-pointer items-start gap-3 py-1">
+            <input
+              type="radio"
+              name="change-status"
+              value={option.value}
+              checked={condition === option.value}
+              onChange={() => setCondition(option.value)}
+              className="mt-1 h-4 w-4 accent-brand"
+            />
+            <span>
+              <span className="block text-[15px] text-ink">{option.label}</span>
+              <span className="block text-xs text-muted">{option.text}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
       <Input
         id="change-status-reason"
         label="Reason"

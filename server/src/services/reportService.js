@@ -114,8 +114,17 @@ const LOAN_SELECT = {
   },
 };
 
-// Room id → { id, name } for every room the loans on this page mention, in one query.
-async function roomNames(loans) {
+// Room id → { id, name } for the given room ids, in one query.
+async function roomsByIds(ids) {
+  const rooms = await prisma.room.findMany({
+    where: { id: { in: [...ids] } },
+    select: { id: true, name: true },
+  });
+  return new Map(rooms.map((room) => [room.id, room]));
+}
+
+// Room id → { id, name } for every room the given loans mention.
+function roomNames(loans) {
   const ids = new Set();
   for (const loan of loans) {
     ids.add(loan.toRoomId);
@@ -123,11 +132,7 @@ async function roomNames(loans) {
       if (loanItem.fromRoomId) ids.add(loanItem.fromRoomId);
     }
   }
-  const rooms = await prisma.room.findMany({
-    where: { id: { in: [...ids] } },
-    select: { id: true, name: true },
-  });
-  return new Map(rooms.map((room) => [room.id, room]));
+  return roomsByIds(ids);
 }
 
 // A loan is late when one of its items came back after the due time, is "Not yet returned"
@@ -176,20 +181,146 @@ function loanRow(loan, rooms, now) {
   };
 }
 
-// GET /api/reports/loans → { data, total } for one page, newest loan first.
-// filters: { from, to, category, room, status, page, pageSize }, already validated by the route.
+// LoanItem statuses where the item really left its room. Waiting and declined items never moved.
+const MOVED_STATUSES = ['APPROVED', 'OVERDUE', 'RETURNED'];
+
+// How many entries "top categories" and "busiest rooms" show.
+const TOP_COUNT = 3;
+
+// Value → how many times it appears.
+function countBy(values) {
+  const counts = new Map();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return counts;
+}
+
+// The TOP_COUNT biggest counts, biggest first; equal counts keep a fixed order (by key).
+function top(counts) {
+  return [...counts]
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .slice(0, TOP_COUNT);
+}
+
+// The Loans summary (01 › Reports) over ALL loans that match the filters, not only one page:
+// - itemsMoved: items that really left their room (approved, not yet returned or returned)
+// - onTimePercent: returned items that came back by the due time, in whole percent; null when
+//   nothing has been returned yet. Returned items without a return time are skipped.
+// - topCategories: categories with the most moved items
+// - busiestRooms: rooms with the most moves; each moved item counts once for the room it came
+//   from and once for the room it went to
+async function loansSummary(where) {
+  const moved = await prisma.loanItem.findMany({
+    where: { loan: where, status: { in: MOVED_STATUSES } },
+    select: {
+      returnedAt: true,
+      fromRoomId: true,
+      loan: { select: { dueAt: true, toRoomId: true } },
+      item: { select: { category: { select: { name: true } } } },
+    },
+  });
+
+  const returned = moved.filter((loanItem) => loanItem.returnedAt);
+  const onTime = returned.filter((loanItem) => loanItem.returnedAt <= loanItem.loan.dueAt);
+
+  const categories = top(countBy(moved.map((loanItem) => loanItem.item.category.name)));
+  const roomCounts = top(
+    countBy(
+      moved.flatMap((loanItem) => [loanItem.fromRoomId, loanItem.loan.toRoomId]).filter(Boolean),
+    ),
+  );
+  const rooms = await roomsByIds(roomCounts.map(([id]) => id));
+
+  return {
+    itemsMoved: moved.length,
+    onTimePercent: returned.length ? Math.round((onTime.length / returned.length) * 100) : null,
+    topCategories: categories.map(([name, count]) => ({ name, count })),
+    busiestRooms: roomCounts.map(([id, count]) => ({
+      id,
+      name: rooms.get(id)?.name ?? null,
+      count,
+    })),
+  };
+}
+
+// Loans that match the filters, newest first, as table rows.
+async function findLoanRows(where, { skip, take }, now) {
+  const loans = await prisma.loan.findMany({
+    where,
+    select: LOAN_SELECT,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip,
+    take,
+  });
+  const rooms = await roomNames(loans);
+  return loans.map((loan) => loanRow(loan, rooms, now));
+}
+
+// GET /api/reports/loans → { data, total, summary } for one page, newest loan first.
+// summary: { loans, itemsMoved, onTimePercent, topCategories, busiestRooms } for all matching
+// loans. filters: { from, to, category, room, status, page, pageSize }, already validated.
 export async function loansReport({ page, pageSize, ...filters }, now = new Date()) {
   const where = loansWhere(filters);
-  const [total, loans] = await Promise.all([
+  const [total, data, summary] = await Promise.all([
     prisma.loan.count({ where }),
-    prisma.loan.findMany({
-      where,
-      select: LOAN_SELECT,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
+    findLoanRows(where, { skip: (page - 1) * pageSize, take: pageSize }, now),
+    loansSummary(where),
   ]);
-  const rooms = await roomNames(loans);
-  return { data: loans.map((loan) => loanRow(loan, rooms, now)), total };
+  return { data, total, summary: { loans: total, ...summary } };
+}
+
+// The CSV holds every matching loan, not only one page (same limit as the Inventory CSV).
+export const LOANS_CSV_MAX_ROWS = 20000;
+
+// Loan item statuses as on the badges (03 › Badge), for the Items cell.
+const LOAN_ITEM_STATUS_LABELS = {
+  PENDING: 'Waiting',
+  APPROVED: 'Approved',
+  DECLINED: 'Declined',
+  RETURNED: 'Returned',
+  OVERDUE: 'Not yet returned',
+};
+
+// Date and time in the app's time zone, in a form Excel sorts correctly: "2026-11-24 13:00".
+// Same format as the Not yet returned CSV (overdueService.js).
+function localDateTime(value) {
+  if (!value) return null;
+  return value
+    .toLocaleString('sv-SE', {
+      timeZone: env.TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(',', '');
+}
+
+// The Loans columns (01 › Reports: loan date, borrower, items, from → to, reason, due,
+// returned at, late), plus the borrower's email and the loan status. Moderators and admins only.
+const loansColumns = [
+  { header: 'Loan date', value: (row) => localDateTime(row.createdAt) },
+  { header: 'Borrower', value: (row) => row.borrower.name },
+  { header: 'Email', value: (row) => row.borrower.email },
+  {
+    header: 'Items',
+    value: (row) =>
+      row.items
+        .map((item) => `${item.name} ${item.code} (${LOAN_ITEM_STATUS_LABELS[item.status]})`)
+        .join(', '),
+  },
+  { header: 'From', value: (row) => row.fromRooms.map((room) => room.name).join(', ') },
+  { header: 'To', value: (row) => row.toRoom?.name },
+  { header: 'Reason', value: (row) => row.reason },
+  { header: 'Due', value: (row) => localDateTime(row.dueAt) },
+  { header: 'Returned at', value: (row) => localDateTime(row.returnedAt) },
+  { header: 'Late', value: (row) => (row.late ? 'Yes' : 'No') },
+  { header: 'Status', value: (row) => (row.status === 'OPEN' ? 'Open' : 'Closed') },
+];
+
+// GET /api/reports/loans?format=csv → the CSV file as text, all matching loans, newest first.
+// filters: as for loansReport, without the page.
+export async function loansCsv(filters, now = new Date()) {
+  const rows = await findLoanRows(loansWhere(filters), { take: LOANS_CSV_MAX_ROWS }, now);
+  return toCsv(loansColumns, rows);
 }

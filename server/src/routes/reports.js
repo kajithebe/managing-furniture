@@ -4,14 +4,15 @@
 // GET /api/reports/inventory?format=csv   the same filters → all matching items as a CSV file
 // GET /api/reports/overdue                M9 Not yet returned tab → { data, total, notYetReturned }
 // GET /api/reports/overdue?format=csv     the same filters → all matching rows as a CSV file
-// GET /api/reports/loans                  M9 Loans tab → { data, total } for one page
+// GET /api/reports/loans                  M9 Loans tab → { data, total, summary } for one page
+// GET /api/reports/loans?format=csv       the same filters → all matching loans as a CSV file
 import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { SHOWN_STATUSES, SORT_COLUMNS } from '../services/itemService.js';
 import { OVERDUE_SORT_COLUMNS, listOverdue, overdueCsv } from '../services/overdueService.js';
-import { inventoryCsv, inventoryReport, loansReport } from '../services/reportService.js';
+import { inventoryCsv, inventoryReport, loansCsv, loansReport } from '../services/reportService.js';
 
 export const reportsRouter = Router();
 
@@ -56,6 +57,7 @@ const loansQuery = z
     status: z.enum(['OPEN', 'CLOSED']).optional(),
     page,
     pageSize,
+    format: z.enum(['csv']).optional(),
   })
   .refine((query) => !query.from || !query.to || query.from <= query.to, {
     message: 'The start date must be on or before the end date',
@@ -108,5 +110,15 @@ reportsRouter.get('/overdue', async (req, res) => {
 });
 
 reportsRouter.get('/loans', async (req, res) => {
-  res.json(await loansReport(loansQuery.parse(req.query)));
+  const { format, page, pageSize, ...filters } = loansQuery.parse(req.query);
+
+  if (format === 'csv') {
+    const csv = await loansCsv(filters);
+    res.attachment(`loans-${today()}.csv`);
+    res.type('text/csv; charset=utf-8');
+    res.send(csv);
+    return;
+  }
+
+  res.json(await loansReport({ ...filters, page, pageSize }));
 });

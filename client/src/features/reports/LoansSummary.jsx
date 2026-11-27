@@ -1,5 +1,6 @@
 // The Loans summary (01 › Reports): five boxes above the table, for ALL loans that match the
 // filters, not only this page. Same box style as the dashboard tiles, but not links. No charts.
+// The boxes are at least 10rem wide and move to a second row in a narrow window.
 function SummaryBox({ label, children }) {
   return (
     <div className="rounded-card border border-line bg-surface p-5">
@@ -11,7 +12,9 @@ function SummaryBox({ label, children }) {
 
 function BigNumber({ children }) {
   return (
-    <span className="mt-1 block text-[32px] font-semibold leading-tight text-ink">{children}</span>
+    <span className="mt-1 block whitespace-nowrap text-[32px] font-semibold leading-tight text-ink">
+      {children}
+    </span>
   );
 }
 
@@ -34,7 +37,7 @@ function TopList({ entries }) {
 
 export default function LoansSummary({ summary }) {
   return (
-    <div className="mt-4 grid grid-cols-5 gap-4">
+    <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-4">
       <SummaryBox label="Loans">
         <BigNumber>{summary.loans}</BigNumber>
       </SummaryBox>
@@ -43,7 +46,7 @@ export default function LoansSummary({ summary }) {
       </SummaryBox>
       <SummaryBox label="Returned on time">
         {/* No number until something has been returned. */}
-        <BigNumber>{summary.onTimePercent === null ? '—' : `${summary.onTimePercent} %`}</BigNumber>
+        <BigNumber>{summary.onTimePercent === null ? '—' : `${summary.onTimePercent}%`}</BigNumber>
       </SummaryBox>
       <SummaryBox label="Top categories">
         <TopList entries={summary.topCategories} />

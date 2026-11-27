@@ -190,7 +190,8 @@ export default function LoansReport() {
         }
       />
 
-      <div className="mt-4 grid grid-cols-5 gap-4">
+      {/* At least 9.5rem per filter, so a date shows in full; a narrow window wraps the row. */}
+      <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-4">
         <Input
           id="loans-report-from"
           type="date"

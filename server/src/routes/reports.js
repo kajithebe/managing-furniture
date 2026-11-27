@@ -4,13 +4,14 @@
 // GET /api/reports/inventory?format=csv   the same filters → all matching items as a CSV file
 // GET /api/reports/overdue                M9 Not yet returned tab → { data, total, notYetReturned }
 // GET /api/reports/overdue?format=csv     the same filters → all matching rows as a CSV file
+// GET /api/reports/loans                  M9 Loans tab → { data, total } for one page
 import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { SHOWN_STATUSES, SORT_COLUMNS } from '../services/itemService.js';
 import { OVERDUE_SORT_COLUMNS, listOverdue, overdueCsv } from '../services/overdueService.js';
-import { inventoryCsv, inventoryReport } from '../services/reportService.js';
+import { inventoryCsv, inventoryReport, loansReport } from '../services/reportService.js';
 
 export const reportsRouter = Router();
 
@@ -18,6 +19,17 @@ reportsRouter.use(requireAuth, requireRole('MODERATOR'));
 
 // Query string values are text, so ids are converted to numbers.
 const queryId = z.coerce.number().int().positive().optional();
+
+const page = z.coerce.number().int().min(1).default(1);
+const pageSize = z.coerce.number().int().min(1).max(100).default(25);
+
+// A real calendar day as YYYY-MM-DD. The round trip refuses days like 2026-02-31.
+function isCalendarDate(text) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T12:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+}
+const dateText = z.string().refine(isCalendarDate, 'Use a date like 2026-11-20').optional();
 
 // The M9 filters (Campus, Building, Room, Category, Status), the sort arrows and paging.
 // z.object drops unknown fields, so e.g. showDisposed or q cannot be sent to this report.
@@ -29,10 +41,26 @@ const inventoryQuery = z.object({
   status: z.enum(SHOWN_STATUSES).optional(),
   sort: z.enum(SORT_COLUMNS).default('code'),
   order: z.enum(['asc', 'desc']).default('asc'),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  page,
+  pageSize,
   format: z.enum(['csv']).optional(),
 });
+
+// The Loans filters (01 › Reports): date range, category, room, status.
+const loansQuery = z
+  .object({
+    from: dateText,
+    to: dateText,
+    category: queryId,
+    room: queryId,
+    status: z.enum(['OPEN', 'CLOSED']).optional(),
+    page,
+    pageSize,
+  })
+  .refine((query) => !query.from || !query.to || query.from <= query.to, {
+    message: 'The start date must be on or before the end date',
+    path: ['from'],
+  });
 
 // Today's date in the app's time zone, for the file name: "inventory-2026-11-18.csv".
 function today() {
@@ -77,4 +105,8 @@ reportsRouter.get('/overdue', async (req, res) => {
   }
 
   res.json(await listOverdue(filters));
+});
+
+reportsRouter.get('/loans', async (req, res) => {
+  res.json(await loansReport(loansQuery.parse(req.query)));
 });

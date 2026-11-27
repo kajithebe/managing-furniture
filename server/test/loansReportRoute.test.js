@@ -8,10 +8,11 @@ vi.mock('../src/services/reportService.js', () => ({
   inventoryReport: vi.fn(),
   inventoryCsv: vi.fn(),
   loansReport: vi.fn(),
+  loansCsv: vi.fn(),
 }));
 
 const { prisma } = await import('../src/db.js');
-const { loansReport } = await import('../src/services/reportService.js');
+const { loansCsv, loansReport } = await import('../src/services/reportService.js');
 const { createApp } = await import('../src/app.js');
 const { startSession } = await import('../src/services/sessionService.js');
 
@@ -44,6 +45,7 @@ function getLoans(query, cookie) {
 beforeEach(() => {
   vi.clearAllMocks();
   loansReport.mockResolvedValue({ data: [], total: 0 });
+  loansCsv.mockResolvedValue('\uFEFFLoan date\r\n');
 });
 
 describe('GET /api/reports/loans – access', () => {
@@ -115,5 +117,33 @@ describe('GET /api/reports/loans – filters', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(loansReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/reports/loans?format=csv', () => {
+  it('downloads all matching loans as a CSV file, without paging', async () => {
+    const res = await getLoans(
+      { format: 'csv', status: 'CLOSED', page: '3' },
+      loginAs('MODERATOR'),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('text/csv; charset=utf-8');
+    expect(res.headers['content-disposition']).toMatch(
+      /^attachment; filename="?loans-\d{4}-\d{2}-\d{2}\.csv"?$/,
+    );
+    expect(loansCsv).toHaveBeenCalledWith({ status: 'CLOSED' });
+    expect(loansReport).not.toHaveBeenCalled();
+  });
+
+  it('refuses a student (403)', async () => {
+    const res = await getLoans({ format: 'csv' }, loginAs('USER'));
+    expect(res.status).toBe(403);
+    expect(loansCsv).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unknown format (400)', async () => {
+    const res = await getLoans({ format: 'xlsx' }, loginAs('MODERATOR'));
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 });

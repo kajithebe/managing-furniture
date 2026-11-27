@@ -1,5 +1,6 @@
 import { Navigate, NavLink, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card.jsx';
+import AssetCodesTab from '../features/settings/AssetCodesTab.jsx';
 import { SETTINGS_TABS } from '../features/settings/settingsTabs.js';
 
 const focusRing =
@@ -7,7 +8,9 @@ const focusRing =
 
 // The content of each tab. Loan rules and Categories come with MF-25, Locations with MF-30,
 // Asset codes with MF-21.
-const TAB_CONTENT = {};
+const TAB_CONTENT = {
+  codes: AssetCodesTab,
+};
 
 // /admin/settings/:tab – A1 Settings (admins only; the server checks the role too).
 export default function SettingsPage() {

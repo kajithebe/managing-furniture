@@ -1,4 +1,4 @@
-// Reports API (02 › API contract): GET /api/reports/inventory, and ?format=csv for the file.
+// Reports API (02 › API contract): GET /api/reports/<report>, and ?format=csv for the file.
 import { ApiError, api } from './client.js';
 
 // Turns the chosen filters into a query string. Empty filters ("All") are left out.
@@ -23,6 +23,18 @@ export function getInventoryReport(params, options) {
 // params: { category, room, sort, order, page }
 export function getOverdueReport(params, options) {
   return api.get(`/reports/overdue${reportQuery(params)}`, options);
+}
+
+// M9 Loans table (MF-32): one page, newest loan first → { data, total, summary }.
+// params: { from, to, category, room, status, page }
+export function getLoansReport(params, options) {
+  return api.get(`/reports/loans${reportQuery(params)}`, options);
+}
+
+// M9 Item history table (MF-32): one page, newest event first → { data, total }.
+// params: { code, from, to, page }
+export function getItemHistoryReport(params, options) {
+  return api.get(`/reports/item-history${reportQuery(params)}`, options);
 }
 
 // "Download CSV" of any report tab: the same filters and sort order, all matching rows (not
@@ -73,4 +85,14 @@ export function downloadInventoryCsv(params) {
 // Not yet returned tab: all late items for the current filters and sort order.
 export function downloadOverdueCsv(params) {
   return downloadReportCsv('overdue', params);
+}
+
+// Loans tab (MF-32): all loans for the current filters, newest first.
+export function downloadLoansCsv(params) {
+  return downloadReportCsv('loans', params);
+}
+
+// Item history tab (MF-32): all events for the current item and dates, newest first.
+export function downloadItemHistoryCsv(params) {
+  return downloadReportCsv('item-history', params);
 }

@@ -3,6 +3,7 @@ import { getCodeScheme } from '../../api/codeScheme.js';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
 import LoadError from '../../components/ui/LoadError.jsx';
+import SegmentChips from './SegmentChips.jsx';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -20,7 +21,8 @@ export default function AssetCodesTab() {
   // A new value loads the format again ("Try again", and after saving in a later step).
   const [reloadKey, setReloadKey] = useState(0);
   const [result, setResult] = useState({ key: -1, data: null, failed: false });
-  const [customizing, setCustomizing] = useState(false);
+  // The format being edited after Customize; null shows the first view.
+  const [draft, setDraft] = useState(null);
   const loading = result.key !== reloadKey;
 
   useEffect(() => {
@@ -49,10 +51,10 @@ export default function AssetCodesTab() {
     );
   }
 
-  const { format, lastChanged } = result.data;
+  const { scheme, format, lastChanged } = result.data;
   const changedText = lastChangedText(lastChanged);
 
-  if (customizing) {
+  if (draft) {
     return (
       <>
         <p className="flex items-baseline gap-12 text-sm text-muted">
@@ -61,6 +63,10 @@ export default function AssetCodesTab() {
         </p>
         <Card className="mt-4">
           <h2 className="text-base font-semibold text-ink">Customize code format</h2>
+          <SegmentChips
+            segments={draft.segments}
+            onChange={(segments) => setDraft({ ...draft, segments })}
+          />
         </Card>
         {changedText && <p className="mt-4 text-xs text-muted">{changedText}</p>}
       </>
@@ -74,7 +80,7 @@ export default function AssetCodesTab() {
         <p className="mt-2 text-xs text-muted">Current format</p>
         <p className="mt-1 font-mono text-[32px] leading-tight text-ink">{format}</p>
         <p className="mt-2 text-[15px] text-ink">Existing asset codes never change.</p>
-        <Button variant="secondary" className="mt-3" onClick={() => setCustomizing(true)}>
+        <Button variant="secondary" className="mt-3" onClick={() => setDraft(scheme)}>
           Customize
         </Button>
       </Card>

@@ -3,6 +3,7 @@ import { getCodeScheme } from '../../api/codeScheme.js';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
 import LoadError from '../../components/ui/LoadError.jsx';
+import CodeFormatOptions from './CodeFormatOptions.jsx';
 import SegmentChips from './SegmentChips.jsx';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -66,6 +67,11 @@ export default function AssetCodesTab() {
           <SegmentChips
             segments={draft.segments}
             onChange={(segments) => setDraft({ ...draft, segments })}
+          />
+          <CodeFormatOptions
+            separator={draft.separator}
+            numberLength={draft.numberLength}
+            onChange={(change) => setDraft({ ...draft, ...change })}
           />
         </Card>
         {changedText && <p className="mt-4 text-xs text-muted">{changedText}</p>}

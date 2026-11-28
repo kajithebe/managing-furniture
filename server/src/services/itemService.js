@@ -3,7 +3,7 @@
 // and their CREATED events are saved in one transaction: either all of them or none.
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/error.js';
-import { reserveCodes } from './codeService.js';
+import { itemCodeParts, reserveCodes } from './codeService.js';
 import { currentLoanOf } from './loanService.js';
 
 // The item fields returned by the API.
@@ -229,8 +229,12 @@ export async function createItems(data, userId) {
     createdById: userId,
   };
 
+  // The code is built from the item's own campus, category, brand, colour and year
+  // (02 › Asset codes), e.g. KAR-CHR-00012 with the scheme campus + category + number.
+  const parts = await itemCodeParts(prisma, fields);
+
   return prisma.$transaction(async (tx) => {
-    const codes = await reserveCodes(tx, quantity);
+    const codes = await reserveCodes(tx, quantity, parts);
 
     const items = await tx.item.createManyAndReturn({
       data: codes.map((code) => ({ ...row, code })),

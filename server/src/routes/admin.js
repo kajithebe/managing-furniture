@@ -4,6 +4,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { listAudit } from '../services/auditService.js';
+import { codeSchemeSchema } from '../services/codeService.js';
+import { getCodeScheme, previewScheme, saveCodeScheme } from '../services/codeSchemeService.js';
 import { USER_SORT_COLUMNS, createUser, listUsers, updateUser } from '../services/userService.js';
 
 export const adminRouter = Router();
@@ -86,4 +88,25 @@ const auditQuery = z
 // GET /api/admin/audit → { data, total }
 adminRouter.get('/audit', async (req, res) => {
   res.json(await listAudit(auditQuery.parse(req.query)));
+});
+
+// Settings → Asset codes (A1). GET → { scheme, format, defaultScheme, lastChanged }
+adminRouter.get('/code-scheme', async (req, res) => {
+  res.json(await getCodeScheme());
+});
+
+// "Save format" (after the "Save new code format?" pop-up) and "Reset to default".
+// Body: the scheme { segments, separator, numberLength }. Replies like GET.
+// A format whose codes could be longer than 30 characters → 400 CODE_TOO_LONG.
+adminRouter.put('/code-scheme', async (req, res) => {
+  const scheme = codeSchemeSchema.parse(req.body ?? {});
+  res.json(await saveCodeScheme(req.user.id, scheme));
+});
+
+// LIVE PREVIEW: called on every change in the builder (add, remove, reorder, separator,
+// length). Body: a scheme, like PUT. → { sample, examples, tooLong, overLimit }
+// Nothing is saved.
+adminRouter.post('/code-scheme/preview', async (req, res) => {
+  const scheme = codeSchemeSchema.parse(req.body ?? {});
+  res.json(await previewScheme(scheme));
 });

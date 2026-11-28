@@ -1,5 +1,6 @@
 // Item routes (02 › API contract).
-// GET  /api/items/next-code   moderator  first and last code of the next `quantity` items
+// GET  /api/items/next-code   moderator  first and last code of the next `quantity` items,
+//                                        built from the chosen category, home room, brand, colour
 // GET  /api/items             moderator  M5 list: filters, search, sorting, paging → { data, total }
 // GET  /api/items/:code       user       one item with rooms, category rule and shown status
 // POST /api/items             moderator  create 1–200 items; returns an array of created items
@@ -8,7 +9,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { previewCodes } from '../services/codeService.js';
+import { itemCodeParts, previewCodes } from '../services/codeService.js';
 import {
   createItems,
   getItem,
@@ -24,8 +25,8 @@ const id = z.number().int().positive();
 const optionalId = id.nullish();
 
 // Query string values are text, so they are converted to numbers.
-// Sprint 1 ignores them; the code scheme (MF-21) uses them for campus, category … segments.
 const queryId = z.coerce.number().int().positive().optional();
+// next-code: the values chosen on M6 so far; each one is optional while the form is filled in.
 const nextCodeQuerySchema = z.object({
   quantity: z.coerce.number().int().min(1).max(200).default(1),
   categoryId: queryId,
@@ -112,8 +113,9 @@ itemsRouter.get('/', moderator, async (req, res) => {
 
 // Must stay above /:code, otherwise "next-code" would be read as an item code.
 itemsRouter.get('/next-code', moderator, async (req, res) => {
-  const { quantity } = nextCodeQuerySchema.parse(req.query);
-  res.json(await previewCodes(prisma, quantity));
+  const { quantity, ...ids } = nextCodeQuerySchema.parse(req.query);
+  const parts = await itemCodeParts(prisma, ids);
+  res.json(await previewCodes(prisma, quantity, parts));
 });
 
 // Every logged-in user: this is the page a QR scan opens.
